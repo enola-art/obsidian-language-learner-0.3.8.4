@@ -184,24 +184,31 @@ function onMouseOver(e: MouseEvent) {
 }
 
 // 拆分文本
-let lines = view.text.split("\n");
-let segments = view.divide(lines);
+let rawLines: string[] = [];
+let article: string[] = [];
 
-let article: string[];
-if (segments["article"]) {
-    article = lines.slice(segments["article"].start, segments["article"].end);
-} else {
-    let fileCache = plugin.app.metadataCache.getFileCache(view.file);
-    let fmEnd = 0;
-    if (fileCache?.frontmatterPosition) {
-        fmEnd = fileCache.frontmatterPosition.end.line + 1;
+try {
+    rawLines = (view.text || "").split("\n");
+    let segments = view.divide(rawLines);
+
+    if (segments && segments["article"]) {
+        article = rawLines.slice(segments["article"].start, segments["article"].end);
+    } else {
+        let fileCache = plugin.app.metadataCache.getFileCache(view.file);
+        let fmEnd = 0;
+        if (fileCache?.frontmatterPosition) {
+            fmEnd = fileCache.frontmatterPosition.end.line + 1;
+        }
+        article = rawLines.slice(fmEnd);
     }
-    article = lines.slice(fmEnd);
+
+    // 清理每行首尾空白，保留原文结构（不过度删除空行）
+    article = article.map(line => line.trim());
+} catch (err) {
+    console.error("[ReadingArea] Article init error:", err);
+    article = [];
 }
 
-// 过滤掉可能导致问题的分页符
-article = article.map(line => line.replace(/---/g, '').trim());
-article = article.filter(line => line !== '');
 let totalLines = article.length;
 
 function countWordsInText(text: string): number {
@@ -361,7 +368,8 @@ function switchToChunk(idx: number) {
 const pageSlot = Platform.isMobileApp ? 5 : null;
 
 let dp = plugin.settings.default_paragraphs;
-let pageSize = ref(dp === "all" ? Number.MAX_VALUE : parseInt(dp));
+let parsedPageSize = dp === "all" ? Number.MAX_VALUE : parseInt(String(dp));
+let pageSize = ref(isNaN(parsedPageSize) || parsedPageSize <= 0 ? 10 : parsedPageSize);
 let maxPage = computed(() =>
     Math.max(1, Math.ceil(currentChunkTotalLines.value / pageSize.value))
 );
@@ -378,9 +386,11 @@ let page = ref(1);
 const savedPos = view.file.getFrontmatterValue("langr-pos");
 if (savedPos && view.lastPos) {
     const posNum = parseInt(String(savedPos).replace(/[A-Z]-/, ''));
-    page.value = Math.min(Math.ceil(posNum / pageSize.value), maxPage.value);
+    if (!isNaN(posNum) && posNum > 0) {
+        page.value = Math.min(Math.ceil(posNum / pageSize.value), maxPage.value);
+    }
 } else if (view.lastPos) {
-    page.value = Math.min(Math.ceil(view.lastPos / pageSize.value), maxPage.value);
+    page.value = Math.min(Math.max(1, Math.ceil(view.lastPos / pageSize.value)), maxPage.value);
 }
 
 let renderedText = ref("");
@@ -391,9 +401,11 @@ let refreshHandle = ref(true);
 // 同时page和pageSize的改变都应该引起langr-pos的改变，但应只修改一次
 // 因此引入psChange这个变量
 watch([pageSize], async ([ps], [prev_ps]) => {
+    if (!ps || ps <= 0) return;
+    const safePrev = (prev_ps && prev_ps > 0) ? prev_ps : ps;
     let oldPage = page.value;
     page.value = Math.min(
-        Math.ceil(((page.value - 1) * prev_ps + 1) / ps),
+        Math.max(1, Math.ceil(((page.value - 1) * safePrev + 1) / ps)),
         Math.max(1, Math.ceil(currentChunkTotalLines.value / ps))
     );
     if (oldPage === page.value) {
@@ -405,29 +417,51 @@ watch(
     [page, psChange, refreshHandle, currentChunkIndex],
     async ([p, pc], [prev_p, prev_pc]) => {
         const chunk = currentChunk.value;
-        if (!chunk || chunk.paragraphCount <= 0) {
-            renderedText.value = "";
+
+        if (!chunk) {
+            console.warn("[ReadingArea] No chunk available, chunks:", chunks.length, "index:", currentChunkIndex.value);
+            renderedText.value = '<p style="color:var(--text-muted);padding:20px;text-align:center;">No content available</p>';
+            return;
+        }
+
+        if (chunk.paragraphCount <= 0 || article.length === 0) {
+            console.warn("[ReadingArea] Empty article or chunk, totalLines:", totalLines, "paragraphCount:", chunk.paragraphCount);
+            renderedText.value = '<p style="color:var(--text-muted);padding:20px;text-align:center;">Article appears to be empty</p>';
             return;
         }
 
         try {
-            const startInChunk = (p - 1) * pageSize.value;
+            const startInChunk = Math.max(0, (p - 1) * pageSize.value);
             const endInChunk = Math.min(startInChunk + pageSize.value, chunk.paragraphCount);
 
-            const sliceStart = Math.min(chunk.startLine + startInChunk, article.length);
-            const sliceEnd = Math.min(chunk.startLine + endInChunk, article.length);
+            const sliceStart = Math.min(Math.max(0, chunk.startLine + startInChunk), article.length);
+            const sliceEnd = Math.min(Math.max(sliceStart, chunk.startLine + endInChunk), article.length);
+
+            if (sliceStart >= sliceEnd) {
+                console.warn("[ReadingArea] Invalid slice range:", { sliceStart, sliceEnd, articleLen: article.length, startInChunk, endInChunk });
+                renderedText.value = "";
+                return;
+            }
+
             const chunkArticle = article.slice(sliceStart, sliceEnd);
+            const rawText = chunkArticle.join("\n");
 
-            let html = await plugin.parser.parse(chunkArticle.join("\n"));
+            if (!rawText.trim()) {
+                console.warn("[ReadingArea] Slice produced empty text for page", p);
+                renderedText.value = "";
+                return;
+            }
 
-            if (plugin.settings.auto_mark_lemma_variants) {
+            let html = await plugin.parser.parse(rawText);
+
+            if (plugin.settings.auto_mark_lemma_variants && html) {
                 html = await applyLemmaMarking(html);
             }
 
-            renderedText.value = html || "";
+            renderedText.value = html || '<p style="color:var(--text-muted);">Rendered empty content</p>';
         } catch (err) {
             console.error("[ReadingArea] Render error:", err);
-            renderedText.value = "";
+            renderedText.value = '<p style="color:#e53935;padding:20px;">Rendering error occurred. Check console for details.</p>';
         }
 
         if (p !== prev_p || pc != prev_pc) {

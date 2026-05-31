@@ -146,7 +146,13 @@
                                 {{ EXAM_LEVELS[selectedLevelFilter]?.labelZh || selectedLevelFilter }}: {{ levelStats[selectedLevelFilter] }}
                             </NTag>
                         </div>
-                        <div class="level-stats-grid">
+                        <div class="level-stats-grid"
+                            :style="{
+                                display: 'grid',
+                                gridTemplateColumns: '1fr 1fr',
+                                gap: '12px',
+                                width: '100%'
+                            }">
                             <div
                                 v-for="(count, key) in levelStats"
                                 :key="key"
@@ -696,9 +702,9 @@ onUnmounted(() => {
         flex-wrap: wrap;
     }
 
-    // 级别分布 Modal - 双列网格卡片布局
+    // 级别分布 Modal - 双列网格卡片布局（内联样式为主，CSS为fallback）
     .level-stats-modal-body {
-        padding: 20px !important;
+        padding: 20px;
         overflow: visible;
 
         .level-stats-header-h {
@@ -720,8 +726,7 @@ onUnmounted(() => {
         }
 
         .level-stats-grid {
-            display: grid !important;
-            grid-template-columns: 1fr 1fr !important;
+            // 内联样式已设置 grid 布局，此处仅作 CSS fallback
             gap: 12px;
             width: 100%;
         }
