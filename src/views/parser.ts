@@ -41,10 +41,16 @@ export class TextParser {
             if (/[0-9\u4e00-\u9fa5]/.test(text)) return;
             wordSet.add(text);
         });
-        let stored = await this.plugin.db.getStoredWords({
-            article: "",
-            words: [...wordSet],
-        });
+        let stored;
+        try {
+            stored = await this.plugin.db.getStoredWords({
+                article: "",
+                words: [...wordSet],
+            });
+        } catch (e) {
+            console.warn("[TextParser] countWords DB lookup failed:", e);
+            return [wordSet.size, 0, 0];
+        }
         let ignore = 0;
         stored.words.forEach((word) => {
             if (word.status === 0) ignore++;
@@ -58,13 +64,18 @@ export class TextParser {
         this.pIdx = 0;
         this.words.clear();
 
-        // 查找文本中的已知词组，用于构造ast中的PhraseNode
-        this.phrases = (
-            await this.plugin.db.getStoredWords({
-                article: text.toLowerCase(),
-                words: [],
-            })
-        ).phrases;
+        // 查找文本中的已知词组，用于构造ast中的PhraseNode（容错：DB未打开时跳过）
+        try {
+            this.phrases = (
+                await this.plugin.db.getStoredWords({
+                    article: text.toLowerCase(),
+                    words: [],
+                })
+            ).phrases;
+        } catch (dbErr) {
+            console.warn("[TextParser] Phrase lookup failed, continuing without phrases:", dbErr);
+            this.phrases = [];
+        }
 
         const ast = this.processor.parse(text);
 
@@ -74,11 +85,17 @@ export class TextParser {
             wordSet.add(toString(word).toLowerCase());
         });
 
-        // 查询这些单词的status
-        let stored = await this.plugin.db.getStoredWords({
-            article: "",
-            words: [...wordSet],
-        });
+        // 查询这些单词的status（容错：DB未打开时所有词标记为"new"）
+        let stored;
+        try {
+            stored = await this.plugin.db.getStoredWords({
+                article: "",
+                words: [...wordSet],
+            });
+        } catch (dbErr2) {
+            console.warn("[TextParser] Word status lookup failed, all words will be 'new':", dbErr2);
+            stored = { words: [] };
+        }
 
         stored.words.forEach((w) => this.words.set(w.text, w));
 
