@@ -134,7 +134,8 @@
             </NModal>
 
             <!-- Level Stats Modal -->
-            <NModal :show="showLevelStatsModal" @update:show="showLevelStatsModal = false">
+            <NModal :show="showLevelStatsModal" @update:show="showLevelStatsModal = false"
+                :content-style="{ padding: '0', overflow: 'visible' }">
                 <NCard style="width: 480px;" :title="t('Level Distribution') || '级别分布'" closable :on-close="() => { showLevelStatsModal = false }">
                     <div v-if="Object.keys(levelStats).length > 0" class="level-stats-modal-body">
                         <div class="level-stats-header-h">
@@ -697,6 +698,9 @@ onUnmounted(() => {
 
     // 级别分布 Modal - 双列网格卡片布局
     .level-stats-modal-body {
+        padding: 20px !important;
+        overflow: visible;
+
         .level-stats-header-h {
             display: flex;
             justify-content: flex-end;
@@ -716,9 +720,10 @@ onUnmounted(() => {
         }
 
         .level-stats-grid {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
+            display: grid !important;
+            grid-template-columns: 1fr 1fr !important;
             gap: 12px;
+            width: 100%;
         }
 
         .level-stat-card {

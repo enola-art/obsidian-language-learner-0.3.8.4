@@ -352,7 +352,7 @@ function goToNextChunk() {
 }
 
 function switchToChunk(idx: number) {
-    if (idx >= 0 && idx < totalChunks.value) {
+    if (Number.isInteger(idx) && idx >= 0 && idx < totalChunks.value && idx !== currentChunkIndex.value) {
         currentChunkIndex.value = idx;
         page.value = 1;
     }
@@ -368,7 +368,10 @@ let maxPage = computed(() =>
 
 const savedChunk = view.file.getFrontmatterValue("langr-chunk");
 if (savedChunk !== undefined && needsChunking.value) {
-    currentChunkIndex.value = parseInt(String(savedChunk));
+    const parsed = parseInt(String(savedChunk));
+    if (!isNaN(parsed) && parsed >= 0 && parsed < chunks.length) {
+        currentChunkIndex.value = parsed;
+    }
 }
 
 let page = ref(1);
@@ -402,20 +405,30 @@ watch(
     [page, psChange, refreshHandle, currentChunkIndex],
     async ([p, pc], [prev_p, prev_pc]) => {
         const chunk = currentChunk.value;
-        if (!chunk) return;
-
-        const startInChunk = (p - 1) * pageSize.value;
-        const endInChunk = Math.min(startInChunk + pageSize.value, chunk.paragraphCount);
-
-        let html = await plugin.parser.parse(
-            article.slice(chunk.startLine + startInChunk, chunk.startLine + endInChunk).join("\n")
-        );
-
-        if (plugin.settings.auto_mark_lemma_variants) {
-            html = await applyLemmaMarking(html);
+        if (!chunk || chunk.paragraphCount <= 0) {
+            renderedText.value = "";
+            return;
         }
 
-        renderedText.value = html;
+        try {
+            const startInChunk = (p - 1) * pageSize.value;
+            const endInChunk = Math.min(startInChunk + pageSize.value, chunk.paragraphCount);
+
+            const sliceStart = Math.min(chunk.startLine + startInChunk, article.length);
+            const sliceEnd = Math.min(chunk.startLine + endInChunk, article.length);
+            const chunkArticle = article.slice(sliceStart, sliceEnd);
+
+            let html = await plugin.parser.parse(chunkArticle.join("\n"));
+
+            if (plugin.settings.auto_mark_lemma_variants) {
+                html = await applyLemmaMarking(html);
+            }
+
+            renderedText.value = html || "";
+        } catch (err) {
+            console.error("[ReadingArea] Render error:", err);
+            renderedText.value = "";
+        }
 
         if (p !== prev_p || pc != prev_pc) {
             if (needsChunking.value) {
