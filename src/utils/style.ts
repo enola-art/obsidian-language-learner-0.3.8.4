@@ -4,17 +4,18 @@ function getRGB(selector: string, property: string): { R: number, G: number, B: 
 
     let rgb = window.getComputedStyle(elem, null)
         .getPropertyValue(property)
-        .match(/\d+/g)
-        .map(v => parseInt(v));
-    return { R: rgb[0], G: rgb[1], B: rgb[2] };
+        .match(/\d+/g);
+    if (!rgb || rgb.length < 3) return { R: 0, G: 0, B: 0 };
+    return { R: parseInt(rgb[0]), G: parseInt(rgb[1]), B: parseInt(rgb[2]) };
 }
 
 function getPageSize(): { pageW: number, pageH: number; } {
     let w = window.getComputedStyle(document.body, null).getPropertyValue("width");
     let h = window.getComputedStyle(document.body, null).getPropertyValue("height");
+    let wm = w.match(/\d+/), hm = h.match(/\d+/);
     return {
-        pageW: parseInt(w.match(/\d+/)[0]),
-        pageH: parseInt(h.match(/\d+/)[0]),
+        pageW: wm ? parseInt(wm[0]) : 0,
+        pageH: hm ? parseInt(hm[0]) : 0,
     };
 }
 

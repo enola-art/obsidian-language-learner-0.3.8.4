@@ -211,8 +211,7 @@ export class SettingTab extends PluginSettingTab {
                     .setValue(String(this.plugin.settings.port))
                     .onChange(debounce(async (port) => {
                         let p = Number(port);
-                        // if (!isNaN(p) && p >= 1023 && p <= 65535) {
-                        if (!isNaN(p)) {
+                        if (!isNaN(p) && p >= 1023 && p <= 65535) {
                             this.plugin.settings.port = p;
                             (this.plugin.db as WebDb).port = p;
                             await this.plugin.saveSettings();
@@ -722,8 +721,8 @@ export class SettingTab extends PluginSettingTab {
             );
 
         new Setting(containerEl)
-            .setName("Auto mark lemma variants in reading" as any)
-            .setDesc("Reading mode: auto-mark lemma variants (e.g. considered -> consider). Default OFF to improve loading performance." as any)
+            .setName(t("Auto mark lemma variants in reading") as any)
+            .setDesc(t("Reading mode: auto-mark lemma variants (e.g. considered -> consider). Default OFF to improve loading performance.") as any)
             .addToggle(toggle => toggle
                 .setValue(this.plugin.settings.auto_mark_lemma_variants)
                 .onChange(async (value) => {
@@ -733,8 +732,8 @@ export class SettingTab extends PluginSettingTab {
             );
 
         new Setting(containerEl)
-            .setName("Auto generate rule-based variants" as any)
-            .setDesc("When submitting a word, also generate verb forms via rule-based patterns (e.g. +s/+ing/+ed). Default OFF — only ECDICT variants are used, which guarantees accuracy. Enable only if you need extra coverage for words not in ECDICT." as any)
+            .setName(t("Auto generate rule-based variants") as any)
+            .setDesc(t("When submitting a word, also generate verb forms via rule-based patterns (e.g. +s/+ing/+ed). Default OFF — only ECDICT variants are used, which guarantees accuracy. Enable only if you need extra coverage for words not in ECDICT.") as any)
             .addToggle(toggle => toggle
                 .setValue(this.plugin.settings.auto_generate_variants)
                 .onChange(async (value) => {

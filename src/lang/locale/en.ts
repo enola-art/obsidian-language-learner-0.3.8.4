@@ -266,4 +266,22 @@ export default {
     "Auto Lemmatize": "Auto Lemmatize",
     "Existing": "Existing",
     "Checking...": "Checking...",
+
+    // LearnPanel variant system
+    "Lemma Variants": "Lemma Variants",
+    "Originally added as": "Originally added as",
+    "No variants recorded yet": "No variants recorded yet",
+    "Add a variant": "Add a variant",
+    "Total variants": "Total variants",
+    "Exam Level": "Exam Level",
+
+    // ReadingArea.vue
+    "Take notes": "Take notes",
+    "Next page after finish": "Next page after finish",
+
+    // Learn Panel settings
+    "Auto mark lemma variants in reading": "Auto mark lemma variants in reading",
+    "Reading mode: auto-mark lemma variants (e.g. considered -> consider). Default OFF to improve loading performance.": "Reading mode: auto-mark lemma variants (e.g. considered -> consider). Default OFF to improve loading performance.",
+    "Auto generate rule-based variants": "Auto generate rule-based variants",
+    "When submitting a word, also generate verb forms via rule-based patterns (e.g. +s/+ing/+ed). Default OFF — only ECDICT variants are used, which guarantees accuracy. Enable only if you need extra coverage for words not in ECDICT.": "When submitting a word, also generate verb forms via rule-based patterns (e.g. +s/+ing/+ed). Default OFF — only ECDICT variants are used, which guarantees accuracy. Enable only if you need extra coverage for words not in ECDICT.",
 };

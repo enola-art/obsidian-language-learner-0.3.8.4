@@ -394,11 +394,15 @@ export class LocalDb extends DbProvider {
     }
 
     async importDB(file: File) {
-        await this.idb.delete();
-        await this.idb.open();
-        await importInto(this.idb, file, {
-            acceptNameDiff: true
-        });
+        try {
+            await importInto(this.idb, file, {
+                acceptNameDiff: true,
+                clearTablesBeforeImport: true
+            });
+        } catch (e) {
+            logger.error("error importing database", e);
+            throw e;
+        }
     }
 
     async exportDB() {

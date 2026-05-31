@@ -11,34 +11,43 @@ export class FrontMatterManager {
 
     // 解析
     async loadFrontMatter(file: TFile): Promise<FrontMatter> {
-        let res = {} as FrontMatter;
-        let text = await this.app.vault.read(file);
+        try {
+            let res = {} as FrontMatter;
+            let text = await this.app.vault.read(file);
 
-        let match = text.match(/^\n*---\n([\s\S]+)\n---/);
-        if (match) {
-            res = parseYaml(match[1]);
+            let match = text.match(/^\n*---\n([\s\S]+)\n---/);
+            if (match) {
+                res = parseYaml(match[1]);
+            }
+
+            return res;
+        } catch (e) {
+            console.error("[FrontMatter] load error:", e);
+            return {} as FrontMatter;
         }
-
-        return res;
     }
 
     async storeFrontMatter(file: TFile, fm: FrontMatter) {
-        if (Object.keys(fm).length === 0) {
-            return;
+        try {
+            if (Object.keys(fm).length === 0) {
+                return;
+            }
+
+            let text = await this.app.vault.read(file);
+            let match = text.match(/^\n*---\n([\s\S]+)\n---/);
+
+            let newText = "";
+            let newFront = stringifyYaml(fm);
+            if (match) {
+                newText = text.replace(/^\n*---\n([\s\S]+)\n---/, `---\n${newFront}---`);
+            } else {
+                newText = `---\n${newFront}---\n\n` + text;
+            }
+
+            await this.app.vault.modify(file, newText);
+        } catch (e) {
+            console.error("[FrontMatter] store error:", e);
         }
-
-        let text = await this.app.vault.read(file);
-        let match = text.match(/^\n*---\n([\s\S]+)\n---/);
-
-        let newText = "";
-        let newFront = stringifyYaml(fm);
-        if (match) {
-            newText = text.replace(/^\n*---\n([\s\S]+)\n---/, `---\n${newFront}---`);
-        } else {
-            newText = `---\n${newFront}---\n\n` + text;
-        }
-
-        this.app.vault.modify(file, newText);
     }
 
     // 读取值

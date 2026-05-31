@@ -1,4 +1,4 @@
-# Language Learner v0.3.3.5
+# Language Learner v0.3.8.4
 
 Obsidian 语言学习插件，集阅读、查词、复习、统计于一体。
 
@@ -117,6 +117,17 @@ npm run build
 ---
 
 ## 版本历史
+
+### v0.3.8.4 (2026-05-31)
+
+- 阅读模式分块懒加载（A/B/C/D pills）：长文章(>=10000词)自动切块，块内段落分页
+- 键盘跨块导航：右箭头在块末尾自动进入下一块
+- 结束阅读按钮三态：下一页 → 下一部分 → 结束全部阅读
+- 阅读进度持久化（langr-chunk + langr-pos），重启恢复位置
+- 修复阅读模式白屏（4个顶层同步崩溃点：Electron IPC/getFileCache null/app未定义/API不存在）
+- 文章清洗去激进化（移除 replace+filter，仅保留 trim）
+- 渲染 watch 顶层 try/catch 保护
+- 作者更新为 sable & cc
 
 ### v0.3.3.5 (2026-05-21)
 

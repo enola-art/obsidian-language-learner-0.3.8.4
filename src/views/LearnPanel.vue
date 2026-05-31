@@ -110,12 +110,12 @@
 							</NFormItem>
 							<NFormItem :show-feedback="false" :show-label="false" :path="`sentences[${index}].trans`">
 								<NInput size="small" type="textarea" v-model:value="model.sentences[index].trans"
-									:placeholder="t('Translation (optional)')" :autosize="{ minRows: 1, maxRows: 3 }" />
+									:placeholder="t('Translation (Optional)')" :autosize="{ minRows: 1, maxRows: 3 }" />
 							</NFormItem>
 							<NFormItem :show-feedback="false" :show-label="false" :path="`sentences[${index}].origin`">
 								<NInput size="small" type="textarea" v-model:value="
 									model.sentences[index].origin
-								" :placeholder="t('Origin (optional)')" :autosize="{ minRows: 1, maxRows: 3 }" />
+								" :placeholder="t('Origin (Optional)')" :autosize="{ minRows: 1, maxRows: 3 }" />
 							</NFormItem>
 						</div>
 					</template>

@@ -62,7 +62,19 @@ const props = defineProps<{
     word: string;
 }>();
 
-let { sentences, notes, meaning_en, meaning_cn } = await plugin.db.getExpression(props.word);
+let sentences: any[] = [];
+let notes: string[] = [];
+let meaning_en = "";
+let meaning_cn = "";
+try {
+    const exprInfo = await plugin.db.getExpression(props.word);
+    sentences = exprInfo.sentences || [];
+    notes = exprInfo.notes || [];
+    meaning_en = exprInfo.meaning_en || "";
+    meaning_cn = exprInfo.meaning_cn || "";
+} catch (e) {
+    console.warn("[WordMore] Failed to load expression:", e);
+}
 
 sentences.forEach((_, i) => {
     sentences[i].text = highlight(sentences[i].text, props.word);

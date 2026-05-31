@@ -263,4 +263,22 @@ export default {
     "Auto Lemmatize": "自动词形还原",
     "Existing": "已存在",
     "Checking...": "查询中...",
+
+    // LearnPanel variant system
+    "Lemma Variants": "词形变体",
+    "Originally added as": "最初添加为",
+    "No variants recorded yet": "暂无记录的变体",
+    "Add a variant": "手动输入变体",
+    "Total variants": "总计",
+    "Exam Level": "考试级别",
+
+    // ReadingArea.vue
+    "Take notes": "做笔记",
+    "Next page after finish": "结束阅读并转入下一页",
+
+    // Learn Panel settings
+    "Auto mark lemma variants in reading": "阅读模式：自动标记词形变体",
+    "Reading mode: auto-mark lemma variants (e.g. considered -> consider). Default OFF to improve loading performance.": "阅读模式下自动标记词形变体（如 considered→consider）。默认关闭以提升加载性能。",
+    "Auto generate rule-based variants": "自动生成规则变体",
+    "When submitting a word, also generate verb forms via rule-based patterns (e.g. +s/+ing/+ed). Default OFF — only ECDICT variants are used, which guarantees accuracy. Enable only if you need extra coverage for words not in ECDICT.": "提交单词时通过规则推导生成动词变体（如 +s/+ing/+ed）。默认关闭 — 仅使用 ECDICT 变体确保准确性。如需覆盖不在 ECDICT 中的单词可开启。",
 };

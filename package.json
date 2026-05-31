@@ -10,7 +10,7 @@
         "version": "node version-bump.mjs && git add manifest.json versions.json"
     },
     "keywords": [],
-    "author": "",
+    "author": "sable & cc",
     "license": "MIT",
     "dependencies": {
         "@vueuse/core": "^9.6.0",
