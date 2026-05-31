@@ -814,15 +814,11 @@ async function submit() {
 				ruleVars = generateVariants(finalExpr, 'v.');
 			}
 
-			const allSet = new Set(ecdictVars.map(v => v.variant.toLowerCase()));
-			const mergedVars = [...ecdictVars];
+			const variantMap = new Map(ecdictVars.map(v => [v.variant.toLowerCase(), v]));
 			for (const rv of ruleVars) {
-				const key = rv.variant.toLowerCase();
-				if (!allSet.has(key)) {
-					mergedVars.push(rv);
-					allSet.add(key);
-				}
+				variantMap.set(rv.variant.toLowerCase(), rv);
 			}
+			const mergedVars = [...variantMap.values()];
 
 			const targetVariants = mergedVars.filter(v => v.variant.toLowerCase() !== finalExpr.toLowerCase());
 
@@ -858,7 +854,7 @@ async function submit() {
 				if (r.status !== 'fulfilled') continue;
 				const { v, youdaoMeaning } = r.value;
 
-				const variantMeaning = youdaoMeaning || "空";
+				const variantMeaning = youdaoMeaning || "";
 
 				const ok = await plugin.addVariant(finalExpr, v.variant, {
 					label: v.label,

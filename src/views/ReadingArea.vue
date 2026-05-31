@@ -199,13 +199,16 @@ const isWordMode = computed(() => totalWords.value >= WORD_BREAKPOINT);
 
 const lineWordCounts = article.map(line => countWordsInText(line));
 const cumulativeWordCounts: number[] = [];
-let cumulative = 0;
-for (const wc of lineWordCounts) {
-    cumulative += wc;
-    cumulativeWordCounts.push(cumulative);
+if (article.length > 0) {
+	let cumulative = 0;
+	for (const wc of lineWordCounts) {
+		cumulative += wc;
+		cumulativeWordCounts.push(cumulative);
+	}
 }
 
 function findLineByWordCount(wordOffset: number): number {
+    if (cumulativeWordCounts.length === 0) return 0;
     if (wordOffset <= 0) return 0;
     if (wordOffset >= totalWords.value) return totalLines;
 

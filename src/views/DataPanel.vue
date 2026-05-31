@@ -207,7 +207,6 @@ import {
     NCard,
     NSelect,
     NDropdown,
-    NPopover,
     NBadge,
 } from "naive-ui";
 import { t } from "@/lang/helper";
@@ -694,106 +693,6 @@ onUnmounted(() => {
         align-items: center;
         gap: 8px;
         flex-wrap: wrap;
-    }
-
-    // 考试级别统计面板 (#3)
-    .level-stats-panel {
-        padding: 10px 12px;
-        background: var(--n-color);
-        border-radius: 8px;
-        margin-bottom: 8px;
-        border: 1px solid var(--border-color);
-
-        .level-stats-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 8px;
-
-            .level-stats-title {
-                font-weight: 600;
-                font-size: 0.9em;
-                color: var(--text-color);
-            }
-
-            .level-stats-total {
-                font-size: 0.82em;
-                color: var(--text-muted);
-            }
-        }
-
-        .level-stats-list {
-            display: flex;
-            flex-direction: column;
-            gap: 4px;
-        }
-
-        .level-stat-item {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            padding: 4px 8px;
-            border-radius: 6px;
-            cursor: pointer;
-            transition: all 0.15s ease;
-
-            &:hover {
-                background: rgba(0, 0, 0, 0.04);
-            }
-
-            &.level-active {
-                background: rgba(0, 0, 0, 0.06);
-                box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.08);
-            }
-        }
-
-        .level-stat-color {
-            width: 10px;
-            height: 10px;
-            border-radius: 50%;
-            flex-shrink: 0;
-        }
-
-        .level-stat-label {
-            font-size: 0.85em;
-            min-width: 60px;
-            color: var(--text-color);
-        }
-
-        .level-stat-bar {
-            flex: 1;
-            height: 8px;
-            background: var(--border-color);
-            border-radius: 4px;
-            overflow: hidden;
-            min-width: 40px;
-        }
-
-        .level-stat-fill {
-            height: 100%;
-            border-radius: 4px;
-            transition: width 0.3s ease;
-            min-width: 2px;
-        }
-
-        .level-stat-count {
-            font-size: 0.82em;
-            min-width: 28px;
-            text-align: right;
-            color: var(--text-muted);
-            font-weight: 500;
-        }
-
-        .level-stat-clear {
-            font-size: 0.75em;
-            color: var(--text-muted);
-            cursor: pointer;
-            padding-left: 2px;
-
-            &:hover {
-                color: #e53935;
-            }
-        }
     }
 
     // 级别分布 Modal - 双列网格卡片布局
