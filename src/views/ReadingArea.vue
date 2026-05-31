@@ -19,8 +19,11 @@
                     <button v-if="page < maxPage" class="finish-reading" @click="addIgnores">
                         结束阅读并转入下一页
                     </button>
+                    <button v-else-if="currentChunkIndex < totalChunks - 1" class="finish-reading" @click="goToNextChunk">
+                        {{ t("Finish this part") || "本部分读完" }} &rarr; {{ t("Next part") || "下一部分" }}
+                    </button>
                     <button v-else class="finish-reading" @click="addIgnores">
-                        结束阅读
+                        {{ t("Finish Reading") || "结束全部阅读" }}
                     </button>
                 </div>
             </div>
@@ -42,17 +45,30 @@
                     display: flex;
                     flex-direction: column;
                 ">
-                <div style="display: flex; justify-content: space-between; align-items: center; padding: 4px 16px; margin-bottom: 8px; font-size: 0.9em;">
-                    <span v-if="isWordMode" style="color: #e67e22;">{{ t("Word-based pagination") }} ({{ totalWords.toLocaleString() }} {{ t("words") }})</span>
-                    <span v-else></span>
+                <div class="chunk-page-info" style="display: flex; justify-content: space-between; align-items: center; padding: 4px 16px; margin-bottom: 8px; font-size: 0.9em;">
+                    <div class="chunk-indicator">
+                        <template v-if="needsChunking">
+                            <span
+                                v-for="(ch, idx) in chunks"
+                                :key="idx"
+                                class="chunk-pill"
+                                :class="{ active: idx === currentChunkIndex, done: idx < currentChunkIndex }"
+                                @click="switchToChunk(idx)"
+                            >
+                                {{ String.fromCharCode(65 + idx) }}
+                                <span v-if="ch.wordCount > 0">({{ formatWords(ch.wordCount) }})</span>
+                            </span>
+                        </template>
+                        <span v-else style="color: var(--text-muted);">{{ t("Single part") || "单篇" }}</span>
+                    </div>
                     <span style="font-weight: 600; color: var(--text-normal);">
                         {{ t("Page") }} {{ currentPageDisplay }} / {{ totalPagesDisplay }}
-                        <span v-if="totalWords > 0">({{ currentRangeWords }} {{ t("words") }})</span>
+                        <span v-if="currentRangeWords > 0">({{ currentRangeWords }} {{ t("paragraphs") || "段" }})</span>
                     </span>
                     <span></span>
                 </div>
                 <NPagination style="justify-content: center" v-model:page="page" v-model:page-size="pageSize"
-                    :item-count="isWordMode ? totalWords : totalLines" show-size-picker :page-sizes="effectivePageSizes"
+                    :item-count="currentChunkTotalLines" show-size-picker :page-sizes="pageSizes"
                     :page-slot="pageSlot" />
             </div>
             <NDrawer v-model:show="activeNotes" :placement="'bottom'" :close-on-esc="true" :auto-focus="true"
@@ -188,14 +204,11 @@ article = article.map(line => line.replace(/---/g, '').trim());
 article = article.filter(line => line !== '');
 let totalLines = article.length;
 
-const WORD_BREAKPOINT = 10000;
-
 function countWordsInText(text: string): number {
     return text.split(/\s+/).filter(w => w.length > 0).length;
 }
 
 const totalWords = ref(countWordsInText(article.join(" ")));
-const isWordMode = computed(() => totalWords.value >= WORD_BREAKPOINT);
 
 const lineWordCounts = article.map(line => countWordsInText(line));
 const cumulativeWordCounts: number[] = [];
@@ -206,6 +219,60 @@ if (article.length > 0) {
 		cumulativeWordCounts.push(cumulative);
 	}
 }
+
+interface Chunk {
+    index: number;
+    startLine: number;
+    endLine: number;
+    wordCount: number;
+    paragraphCount: number;
+}
+
+const WORD_BREAKPOINT = 10000;
+
+function buildChunks(): Chunk[] {
+    if (totalWords.value < WORD_BREAKPOINT) {
+        return [{
+            index: 0,
+            startLine: 0,
+            endLine: totalLines,
+            wordCount: totalWords.value,
+            paragraphCount: totalLines,
+        }];
+    }
+
+    const result: Chunk[] = [];
+    let chunkStart = 0;
+    let chunkWordCount = 0;
+    let chunkIndex = 0;
+
+    for (let i = 0; i < totalLines; i++) {
+        chunkWordCount += lineWordCounts[i] || 0;
+
+        if (chunkWordCount >= WORD_BREAKPOINT || i === totalLines - 1) {
+            result.push({
+                index: chunkIndex,
+                startLine: chunkStart,
+                endLine: i + 1,
+                wordCount: chunkWordCount,
+                paragraphCount: i + 1 - chunkStart,
+            });
+            chunkStart = i + 1;
+            chunkWordCount = 0;
+            chunkIndex++;
+        }
+    }
+
+    return result;
+}
+
+const chunks = buildChunks();
+const totalChunks = computed(() => chunks.length);
+const needsChunking = computed(() => chunks.length > 1);
+
+const currentChunkIndex = ref(0);
+const currentChunk = computed(() => chunks[currentChunkIndex.value] || null);
+const currentChunkTotalLines = computed(() => currentChunk.value?.paragraphCount || totalLines);
 
 function findLineByWordCount(wordOffset: number): number {
     if (cumulativeWordCounts.length === 0) return 0;
@@ -256,56 +323,62 @@ const pageSizes = [
     { label: `${t("All")}`, value: Number.MAX_VALUE },
 ];
 
-const wordPageSizes = [
-    { label: `5,000 ${t("words")} / ${t("page")}`, value: 5000 },
-    { label: `10,000 ${t("words")} / ${t("page")}`, value: 10000 },
-    { label: `20,000 ${t("words")} / ${t("page")}`, value: 20000 },
-    { label: `${t("All")}`, value: Number.MAX_VALUE },
-];
-
-const effectivePageSizes = computed(() => {
-    return isWordMode.value ? wordPageSizes : pageSizes;
-});
-
 const currentPageDisplay = computed(() => page.value);
-const totalPagesDisplay = computed(() => {
-    return isWordMode.value
-        ? Math.max(1, Math.ceil(totalWords.value / pageSize.value))
-        : Math.max(1, Math.ceil(totalLines / pageSize.value));
-});
+const totalPagesDisplay = computed(() =>
+    Math.max(1, Math.ceil(currentChunkTotalLines.value / pageSize.value))
+);
 
 const currentRangeWords = computed(() => {
-    if (!isWordMode.value) {
-        const start = (page.value - 1) * pageSize.value;
-        const end = Math.min(start + pageSize.value, totalLines);
-        let sum = 0;
-        for (let i = start; i < end; i++) {
-            sum += lineWordCounts[i] || 0;
-        }
-        return sum;
-    } else {
-        const start = (page.value - 1) * pageSize.value;
-        const end = Math.min(start + pageSize.value, totalWords.value);
-        return end - start;
+    const start = (page.value - 1) * pageSize.value;
+    const end = Math.min(start + pageSize.value, currentChunkTotalLines.value);
+    const chunkStart = currentChunk.value?.startLine || 0;
+    let sum = 0;
+    for (let i = chunkStart + start; i < chunkStart + end; i++) {
+        sum += lineWordCounts[i] || 0;
     }
+    return sum;
 });
+
+function formatWords(n: number): string {
+    if (n >= 10000) return (n / 1000).toFixed(0) + "k";
+    return String(n);
+}
+
+function goToNextChunk() {
+    if (currentChunkIndex.value < totalChunks.value - 1) {
+        currentChunkIndex.value++;
+        page.value = 1;
+    }
+}
+
+function switchToChunk(idx: number) {
+    if (idx >= 0 && idx < totalChunks.value) {
+        currentChunkIndex.value = idx;
+        page.value = 1;
+    }
+}
 
 const pageSlot = Platform.isMobileApp ? 5 : null;
 
 let dp = plugin.settings.default_paragraphs;
-let pageSize = ref(
-    isWordMode.value
-        ? (dp === "all" ? 10000 : Math.max(10000, parseInt(dp) * 25))
-        : (dp === "all" ? Number.MAX_VALUE : parseInt(dp))
+let pageSize = ref(dp === "all" ? Number.MAX_VALUE : parseInt(dp));
+let maxPage = computed(() =>
+    Math.max(1, Math.ceil(currentChunkTotalLines.value / pageSize.value))
 );
-let maxPage = computed(() => {
-    return isWordMode.value
-        ? Math.max(1, Math.ceil(totalWords.value / pageSize.value))
-        : Math.max(1, Math.ceil(totalLines / pageSize.value));
-});
-let page = view.lastPos
-    ? ref(Math.min(Math.ceil(view.lastPos / pageSize.value), maxPage.value))
-    : ref(1);
+
+const savedChunk = view.file.getFrontmatterValue("langr-chunk");
+if (savedChunk !== undefined && needsChunking.value) {
+    currentChunkIndex.value = parseInt(String(savedChunk));
+}
+
+let page = ref(1);
+const savedPos = view.file.getFrontmatterValue("langr-pos");
+if (savedPos && view.lastPos) {
+    const posNum = parseInt(String(savedPos).replace(/[A-Z]-/, ''));
+    page.value = Math.min(Math.ceil(posNum / pageSize.value), maxPage.value);
+} else if (view.lastPos) {
+    page.value = Math.min(Math.ceil(view.lastPos / pageSize.value), maxPage.value);
+}
 
 let renderedText = ref("");
 let psChange = ref(true); // 标志pageSize的改变
@@ -316,10 +389,9 @@ let refreshHandle = ref(true);
 // 因此引入psChange这个变量
 watch([pageSize], async ([ps], [prev_ps]) => {
     let oldPage = page.value;
-    const totalItems = isWordMode.value ? totalWords.value : totalLines;
     page.value = Math.min(
         Math.ceil(((page.value - 1) * prev_ps + 1) / ps),
-        Math.max(1, Math.ceil(totalItems / ps))
+        Math.max(1, Math.ceil(currentChunkTotalLines.value / ps))
     );
     if (oldPage === page.value) {
         psChange.value = !psChange.value;
@@ -327,29 +399,16 @@ watch([pageSize], async ([ps], [prev_ps]) => {
 });
 
 watch(
-    [page, psChange, refreshHandle],
+    [page, psChange, refreshHandle, currentChunkIndex],
     async ([p, pc], [prev_p, prev_pc]) => {
-        let startLine: number;
-        let endLine: number;
+        const chunk = currentChunk.value;
+        if (!chunk) return;
 
-        if (isWordMode.value) {
-            const wordOffset = (p - 1) * pageSize.value;
-            const wordEnd = Math.min(wordOffset + pageSize.value, totalWords.value);
-
-            startLine = findLineByWordCount(wordOffset);
-            endLine = findLineByWordCount(wordEnd);
-
-            if (endLine < startLine) endLine = startLine;
-        } else {
-            startLine = (p - 1) * pageSize.value;
-            endLine =
-                startLine + pageSize.value > totalLines
-                    ? totalLines
-                    : startLine + pageSize.value;
-        }
+        const startInChunk = (p - 1) * pageSize.value;
+        const endInChunk = Math.min(startInChunk + pageSize.value, chunk.paragraphCount);
 
         let html = await plugin.parser.parse(
-            article.slice(startLine, endLine).join("\n")
+            article.slice(chunk.startLine + startInChunk, chunk.startLine + endInChunk).join("\n")
         );
 
         if (plugin.settings.auto_mark_lemma_variants) {
@@ -359,14 +418,17 @@ watch(
         renderedText.value = html;
 
         if (p !== prev_p || pc != prev_pc) {
-            const posBase = isWordMode.value
-                ? (p - 1) * pageSize.value
-                : (p - 1) * pageSize.value;
-            plugin.frontManager.setFrontMatter(
-                view.file,
-                "langr-pos",
-                `${posBase + 1}`
-            );
+            if (needsChunking.value) {
+                const chunkLetter = String.fromCharCode(65 + currentChunkIndex.value);
+                plugin.frontManager.setFrontMatter(view.file, "langr-chunk", currentChunkIndex.value);
+                plugin.frontManager.setFrontMatter(view.file, "langr-pos", `${chunkLetter}-${(p - 1) * pageSize.value + 1}`);
+            } else {
+                plugin.frontManager.setFrontMatter(
+                    view.file,
+                    "langr-pos",
+                    `${(p - 1) * pageSize.value + 1}`
+                );
+            }
         }
 
         await nextTick();
@@ -475,6 +537,8 @@ async function addIgnores() {
 
     if (page.value < maxPage.value) {
         page.value++;
+    } else if (currentChunkIndex.value < totalChunks.value - 1) {
+        goToNextChunk();
     }
 
     refreshCount();
@@ -595,6 +659,8 @@ function handleKeydown(e: KeyboardEvent) {
             e.preventDefault();
             if (page.value < maxPage.value) {
                 page.value++;
+            } else if (currentChunkIndex.value < totalChunks.value - 1) {
+                goToNextChunk();
             }
             break;
         case "ArrowLeft":
@@ -602,6 +668,9 @@ function handleKeydown(e: KeyboardEvent) {
             e.preventDefault();
             if (page.value > 1) {
                 page.value--;
+            } else if (currentChunkIndex.value > 0) {
+                currentChunkIndex.value--;
+                page.value = maxPage.value;
             }
             break;
         case "Home":
@@ -770,8 +839,39 @@ onUnmounted(() => {
 }
 
 .is-mobile #langr-reading {
-    .pagination {
-        padding-bottom: 48px;
+        .pagination {
+            padding-bottom: 48px;
+        }
     }
-}
+
+    .chunk-page-info {
+        .chunk-indicator {
+            display: flex;
+            gap: 6px;
+            flex-wrap: wrap;
+
+            .chunk-pill {
+                padding: 2px 10px;
+                border-radius: 12px;
+                font-size: 0.78em;
+                cursor: pointer;
+                background: var(--background-modifier-border);
+                color: var(--text-muted);
+                border: 1px solid transparent;
+                transition: all 0.2s;
+
+                &:hover { background: var(--background-modifier-hover); }
+                &.active {
+                    background: var(--interactive-accent);
+                    color: #fff;
+                    font-weight: 700;
+                    box-shadow: 0 0 0 2px var(--interactive-accent-hover);
+                }
+                &.done {
+                    opacity: 0.5;
+                    text-decoration: line-through;
+                }
+            }
+        }
+    }
 </style>

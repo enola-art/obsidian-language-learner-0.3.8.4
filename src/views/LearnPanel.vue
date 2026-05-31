@@ -854,7 +854,7 @@ async function submit() {
 				if (r.status !== 'fulfilled') continue;
 				const { v, youdaoMeaning } = r.value;
 
-				const variantMeaning = youdaoMeaning || "";
+				const variantMeaning = youdaoMeaning || "空";
 
 				const ok = await plugin.addVariant(finalExpr, v.variant, {
 					label: v.label,

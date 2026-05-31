@@ -33,6 +33,10 @@ export default {
     "words": "words",
     "Word-based pagination": "Word-based pagination",
     "Level Distribution": "Level Distribution",
+    "Single part": "Single part",
+    "Finish this part": "Finish this part",
+    "Next part": "Next part",
+    "paragraphs": "paragraphs",
     "All": "All",
 
     // LearnPanelView.ts

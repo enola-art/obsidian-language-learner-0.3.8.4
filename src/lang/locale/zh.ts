@@ -32,6 +32,10 @@ export default {
     "words": "词",
     "Word-based pagination": "词数分页模式",
     "Level Distribution": "级别分布",
+    "Single part": "单篇",
+    "Finish this part": "本部分读完",
+    "Next part": "下一部分",
+    "paragraphs": "段",
     "All": "全部",
 
     // LearnPanelView.ts
