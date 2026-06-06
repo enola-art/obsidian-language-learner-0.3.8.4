@@ -18,6 +18,13 @@ desktop.ini
 *.temp
 node_modules/
 
+# 用户配置
+data.json
+
+# 隐私图片
+public/alipay.jpg
+public/wechat.jpg
+
 # 大型数据文件
 data/ecdict-sqlite-28/
 
