@@ -86,7 +86,7 @@ export const DEFAULT_SETTINGS: MyPluginSettings = {
     auto_refresh_db: true,
     // reading
     default_paragraphs: "4",
-    font_size: "15px",
+    font_size: "32px",
     font_family: '"Times New Roman"',
     line_height: "1.8em",
     use_machine_trans: true,
@@ -96,7 +96,7 @@ export const DEFAULT_SETTINGS: MyPluginSettings = {
     review_prons: "0",
     review_delimiter: "?",
     // learn panel
-    learn_panel_font_size: "0.5em",
+    learn_panel_font_size: "0.8em",
     auto_lemmatize: false,
     auto_mark_lemma_variants: false,
     auto_generate_variants: false,
