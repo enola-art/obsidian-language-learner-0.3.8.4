@@ -17,3 +17,13 @@ desktop.ini
 *.tmp
 *.temp
 node_modules/
+
+# 大型数据文件
+data/ecdict-sqlite-28/
+
+# 编译产物
+main.js
+main.css
+styles.css
+stat-bundle.mjs
+nlp-bundle.mjs
