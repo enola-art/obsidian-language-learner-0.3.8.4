@@ -12,10 +12,12 @@ import {
 import DbProvider from "./base";
 import WordDB from "./idb";
 import Plugin from "@/plugin";
+import { isExamLevel } from "@/utils/exam-levels";
 import { logger } from "@/utils/logger";
 import { lemmatize } from "@/utils/lemmatizer";
 import { isGarbledExpression, getReasonDescription } from "@/utils/garbled-detector";
 import { findLemmaByVariant } from '@/data/ecdict-variants-reverse';
+import { getWordExamLevels, isExamVocabDataLoaded } from '@/data/exam-vocab';
 
 
 export class LocalDb extends DbProvider {
@@ -25,6 +27,12 @@ export class LocalDb extends DbProvider {
         super();
         this.plugin = plugin;
         this.idb = new WordDB(plugin);
+    }
+
+    private _tagsToArray(tags: any): string[] {
+        if (tags instanceof Set) return [...tags];
+        if (Array.isArray(tags)) return tags.filter((t: any) => typeof t === 'string');
+        return [];
     }
 
     async open() {
@@ -80,7 +88,7 @@ export class LocalDb extends DbProvider {
             t: expr.t,
             notes: expr.notes,
             sentences,
-            tags: [...expr.tags.keys()],
+            tags: this._tagsToArray(expr.tags),
             lemma_variants: expr.lemma_variants,
             original_input: expr.original_input,
         };
@@ -103,7 +111,7 @@ export class LocalDb extends DbProvider {
                 meaning_cn: v.meaning_cn || "",
                 status: v.status,
                 t: v.t,
-                tags: [...v.tags.keys()],
+                tags: this._tagsToArray(v.tags),
                 sen_num: v.sentences.size,
                 note_num: v.notes.length,
                 date: v.date
@@ -133,7 +141,7 @@ export class LocalDb extends DbProvider {
                 t: expr.t,
                 notes: expr.notes,
                 sentences,
-                tags: [...expr.tags.keys()],
+                tags: this._tagsToArray(expr.tags),
             });
         }
         return res;
@@ -157,7 +165,7 @@ export class LocalDb extends DbProvider {
                 meaning_en: expr.meaning_en || "",
                 meaning_cn: expr.meaning_cn || "",
                 t: expr.t,
-                tags: [...expr.tags.keys()],
+                tags: this._tagsToArray(expr.tags),
                 note_num: expr.notes.length,
                 sen_num: expr.sentences.size,
                 date: expr.date,
@@ -428,13 +436,13 @@ export class LocalDb extends DbProvider {
         await importInto(this.idb, blob, { acceptNameDiff: true });
     }
 
-    async diagnoseAndFixDatabase(): Promise<number> {
-        let fixedCount = 0;
+    async diagnoseAndCleanDatabase(): Promise<{ fixed: number; removed: number }> {
         const meaningPrefixes = /^(n\.|v\.|adj\.|adv\.|conj\.|prep\.|pron\.|\d+\.|【)/i;
 
         const allExprs = await this.idb.expressions.toArray();
-        const updates: Array<{id: number, expression: string, meaning: string, meaning_en: string, meaning_cn: string}> = [];
 
+        // --- 诊断修复: 表达式/含义错位 ---
+        const fixUpdates: Array<{id: number, expression: string, meaning: string, meaning_en: string, meaning_cn: string}> = [];
         for (const expr of allExprs) {
             let needsFix = false;
             let finalExpression = expr.expression;
@@ -462,35 +470,14 @@ export class LocalDb extends DbProvider {
             }
 
             if (needsFix && expr.id) {
-                updates.push({ id: expr.id, expression: finalExpression, meaning: finalMeaning, meaning_en: finalMeaningEn, meaning_cn: finalMeaningCn });
-                fixedCount++;
+                fixUpdates.push({ id: expr.id, expression: finalExpression, meaning: finalMeaning, meaning_en: finalMeaningEn, meaning_cn: finalMeaningCn });
             }
         }
 
-        if (updates.length > 0) {
-            const exprMap = new Map(allExprs.map(e => [e.id, e]));
-            await this.idb.expressions.bulkPut(updates.map(u => {
-                const orig = exprMap.get(u.id);
-                return {
-                    ...orig,
-                    expression: u.expression,
-                    meaning: u.meaning,
-                    meaning_en: u.meaning_en,
-                    meaning_cn: u.meaning_cn,
-                } as any;
-            }));
-            dispatchEvent(new CustomEvent("obsidian-langr-data-change"));
-        }
-
-        return fixedCount;
-    }
-
-    async removeDuplicates(): Promise<number> {
-        const allExprs = await this.idb.expressions.toArray();
+        // --- 去重: 相同表达式只保留一条 ---
         const seen = new Map<string, number>();
         const toDelete: number[] = [];
-        const toUpdate: Array<{id: number, expression: string}> = [];
-        const meaningPrefixes = /^(n\.|v\.|adj\.|adv\.|conj\.|prep\.|pron\.|\d+\.|【)/i;
+        const dedupUpdates: Array<{id: number, expression: string}> = [];
 
         for (const expr of allExprs) {
             let cleanExpression = expr.expression.toLowerCase().trim();
@@ -510,27 +497,41 @@ export class LocalDb extends DbProvider {
             } else {
                 seen.set(cleanExpression, expr.id);
                 if (cleanExpression !== expr.expression) {
-                    toUpdate.push({ id: expr.id, expression: cleanExpression });
+                    dedupUpdates.push({ id: expr.id, expression: cleanExpression });
                 }
             }
         }
 
-        if (toDelete.length > 0) {
-            await this.idb.expressions.bulkDelete(toDelete);
+        let fixedCount = 0;
+        let removedCount = 0;
+
+        const exprMap = new Map(allExprs.map(e => [e.id, e]));
+
+        if (fixUpdates.length > 0) {
+            await this.idb.expressions.bulkPut(fixUpdates.map(u => {
+                const orig = exprMap.get(u.id);
+                return { ...orig, expression: u.expression, meaning: u.meaning, meaning_en: u.meaning_en, meaning_cn: u.meaning_cn } as any;
+            }));
+            fixedCount = fixUpdates.length;
         }
-        if (toUpdate.length > 0) {
-            const exprMap = new Map(allExprs.map(e => [e.id, e]));
-            await this.idb.expressions.bulkPut(toUpdate.map(u => ({
+
+        if (dedupUpdates.length > 0) {
+            await this.idb.expressions.bulkPut(dedupUpdates.map(u => ({
                 ...exprMap.get(u.id),
                 expression: u.expression,
             }) as any));
         }
 
-        if (toDelete.length > 0 || toUpdate.length > 0) {
+        if (toDelete.length > 0) {
+            await this.idb.expressions.bulkDelete(toDelete);
+            removedCount = toDelete.length;
+        }
+
+        if (fixedCount > 0 || removedCount > 0) {
             dispatchEvent(new CustomEvent("obsidian-langr-data-change"));
         }
 
-        return toDelete.length;
+        return { fixed: fixedCount, removed: removedCount };
     }
 
     async ensureDataImported(): Promise<boolean> {
@@ -677,10 +678,19 @@ export class LocalDb extends DbProvider {
                 existingMap.set(e.expression.toLowerCase(), e.id);
             }
 
+            const examVocabLoaded = isExamVocabDataLoaded();
+
             const toAdd: any[] = [];
             for (const w of batchWords) {
                 const key = w.expression.toLowerCase();
                 if (!existingMap.has(key)) {
+                    const tags = new Set<string>();
+                    if (examVocabLoaded) {
+                        const levels = getWordExamLevels(key);
+                        for (const level of levels) {
+                            tags.add(level);
+                        }
+                    }
                     toAdd.push({
                         expression: w.expression,
                         meaning: w.meaning,
@@ -689,7 +699,7 @@ export class LocalDb extends DbProvider {
                         status: w.status,
                         t: "WORD",
                         notes: [],
-                        tags: new Set(),
+                        tags,
                         sentences: new Set(),
                         connections: new Map(),
                         date: moment().unix(),
@@ -956,11 +966,12 @@ export class LocalDb extends DbProvider {
         const all = await this.idb.expressions.toArray();
         const stats: Record<string, number> = { other: 0 };
         for (const expr of all) {
-            if (expr.tags && expr.tags.size > 0) {
+            const tags = this._tagsToArray(expr.tags);
+            if (tags.length > 0) {
                 let found = false;
-                for (const tag of expr.tags) {
-                    if (tag === 'cet4' || tag === 'cet6' || tag === 'ielts' || tag === 'toefl' || tag === 'gre' || tag === 'hs' || tag === 'kaoyan') {
-                        stats[tag] = (stats[tag] || 0) + 1;
+                for (const tag of tags) {
+                    if (isExamLevel(tag.toLowerCase())) {
+                        stats[tag.toLowerCase()] = (stats[tag.toLowerCase()] || 0) + 1;
                         found = true;
                         break;
                     }
@@ -975,8 +986,12 @@ export class LocalDb extends DbProvider {
 
     async getByLevel(level: string): Promise<ExpressionInfoSimple[]> {
         const all = await this.idb.expressions.toArray();
+        const lowerLevel = level.toLowerCase();
         return all
-            .filter(expr => expr.tags && expr.tags.has(level))
+            .filter(expr => {
+                const tags = this._tagsToArray(expr.tags);
+                return tags.some(t => t.toLowerCase() === lowerLevel);
+            })
             .map(expr => ({
                 id: expr.id,
                 expression: expr.expression,
@@ -985,7 +1000,7 @@ export class LocalDb extends DbProvider {
                 meaning_cn: expr.meaning_cn || "",
                 status: expr.status,
                 t: expr.t,
-                tags: Array.from(expr.tags || []),
+                tags: this._tagsToArray(expr.tags),
                 note_num: (expr.notes as any)?.length || 0,
                 sen_num: (expr.sentences as any)?.length || 0,
                 date: expr.date,

@@ -279,9 +279,9 @@ export class WebDb extends DbProvider {
         // 什么也没有发生
     }
 
-    async diagnoseAndFixDatabase(): Promise<number> {
+    async diagnoseAndCleanDatabase(): Promise<{ fixed: number; removed: number }> {
         // 服务器模式下，诊断和修复功能在服务器端
-        return 0;
+        return { fixed: 0, removed: 0 };
     }
 
     async deleteExpression(expression: string): Promise<void> {

@@ -228,7 +228,7 @@ import { lemmatize, LABEL_MAP } from "@/utils/lemmatizer";
 import { generateVariants, type VariantInfo } from "@/utils/variant-generator";
 import { getEcdictVariants } from '@/data/ecdict-variants';
 import { EXAM_LEVELS, type ExamLevelKey, extractLevelFromTags } from "@/utils/exam-levels";
-import { getWordExamLevel, EXAM_VOCAB_MAP } from "@/data/exam-vocab";
+import { getWordExamLevel, hasExamVocabWord } from "@/data/exam-vocab";
 import { useDebounceFn } from "@vueuse/core";
 import store from "@/store";
 
@@ -374,7 +374,7 @@ watch(() => model.value.expression, async (expr) => {
 	} else {
 		const lemmaResult = lemmatize(trimmedExpr);
 		if (lemmaResult && lemmaResult.lemma !== trimmedExpr.toLowerCase()
-			&& EXAM_VOCAB_MAP.has(lemmaResult.lemma)) {
+			&& hasExamVocabWord(lemmaResult.lemma)) {
 			targetLemma = lemmaResult.lemma;
 		}
 	}

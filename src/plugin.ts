@@ -16,7 +16,9 @@ import { createApp, App as VueApp } from "vue";
 import { SearchPanelView, SEARCH_ICON, SEARCH_PANEL_VIEW } from "./views/SearchPanelView";
 import { READING_VIEW_TYPE, READING_ICON, ReadingView } from "./views/ReadingView";
 import { LearnPanelView, LEARN_ICON, LEARN_PANEL_VIEW } from "./views/LearnPanelView";
-import { StatView, STAT_ICON, STAT_VIEW_TYPE } from "./views/StatView";
+// StatView is lazy-loaded via stat-bundle.mjs (echarts ~1MB excluded from main bundle)
+const STAT_VIEW_TYPE = 'langr-stat';
+const STAT_ICON = 'bar-chart-4';
 import { DataPanelView, DATA_ICON, DATA_PANEL_VIEW } from "./views/DataPanelView";
 // import { PDFView, PDF_FILE_EXTENSION, VIEW_TYPE_PDF } from "./views/PDFView";
 
@@ -43,6 +45,9 @@ import {
     formatGarbledReport
 } from "./utils/garbled-detector";
 import type { GarbledWordResult } from "./utils/garbled-detector";
+import { loadVariantData } from "./data/ecdict-variants-reverse";
+import { loadForwardVariantData } from "./data/ecdict-variants";
+import { loadExamVocabData, getWordExamLevels, isExamVocabDataLoaded } from "./data/exam-vocab";
 
 
 
@@ -56,10 +61,15 @@ export default class LanguageLearner extends Plugin {
     vueApp: VueApp;
     db: DbProvider;
     server: Server;
-    parser: TextParser;
+    _parser: TextParser | null = null;
+    get parser(): TextParser {
+        if (!this._parser) this._parser = new TextParser(this);
+        return this._parser;
+    }
     markdownButtons: Record<string, HTMLElement> = {};
     frontManager: FrontMatterManager;
     store: typeof store = store;
+    _StatView: any = null;
     _saveTimer: number = null;
     _wordDbTimer: number = null;
 
@@ -92,6 +102,12 @@ export default class LanguageLearner extends Plugin {
 
         // vault 内 langr-db.json 为主存储，IndexedDB 仅为运行时缓存
         this.app.workspace.onLayoutReady(async () => {
+            // 异步加载数据 JSON (变体索引 + 考试词汇)，确保 import 时可用
+            await this._loadVariantIndex();
+
+            // 后台预加载 stat-bundle (echarts ~1MB)，不阻塞 UI
+            this._preloadStatBundle();
+
             // 监听数据变更事件，自动同步到 vault
             addEventListener("obsidian-langr-data-change", () => {
                 this.scheduleDbSave();
@@ -115,10 +131,9 @@ export default class LanguageLearner extends Plugin {
                         await this.importWordDB();
                     }
                 } else if (restored) {
-                    // 从 vault 恢复后，诊断并修复可能的数据错误
+                    // 从 vault 恢复后，诊断并修复数据 (单次全表扫描)
                     const localDb = this.db as LocalDb;
-                    const fixed = await localDb.diagnoseAndFixDatabase();
-                    const removed = await localDb.removeDuplicates();
+                    const { fixed, removed } = await localDb.diagnoseAndCleanDatabase();
                     if (fixed > 0 || removed > 0) {
                         new Notice(t("Fixed N corrupted word entries").replace("N", String(fixed + removed)));
                     }
@@ -129,8 +144,7 @@ export default class LanguageLearner extends Plugin {
             }
         });
 
-        // 设置解析器
-        this.parser = new TextParser(this);
+        // FrontMatter 管理器（轻量，启动时可初始化）
         this.frontManager = new FrontMatterManager(this.app);
 
         // 打开内置服务器
@@ -200,6 +214,62 @@ export default class LanguageLearner extends Plugin {
             basePath: normalizePath((this.app.vault.adapter as any).basePath),
             platform: Platform.isMobile ? "mobile" : "desktop",
         };
+    }
+
+    /** 异步加载数据 JSON 文件 (避开 main.js bundle, 减少启动阻塞) */
+    private async _loadVariantIndex() {
+        const pluginDir = (this.manifest as any).dir
+            || `.obsidian/plugins/${this.manifest.id}`;
+
+        // 并行加载所有数据文件
+        await Promise.all([
+            (async () => {
+                try {
+                    // 反向索引: 变体→词条 (31K 条目, 749KB)
+                    const path = normalizePath(`${pluginDir}/variants-reverse.json`);
+                    const text = await this.app.vault.adapter.read(path);
+                    await loadVariantData(text);
+                    logger.log(`Variant reverse index loaded (${(text.length / 1024).toFixed(0)} KB)`);
+                } catch (e) {
+                    logger.warn("Variant reverse index not loaded:", e);
+                }
+            })(),
+            (async () => {
+                try {
+                    // 正向映射: 词条→变体列表 (16K 条目, 3.2MB)
+                    const path = normalizePath(`${pluginDir}/variants.json`);
+                    const text = await this.app.vault.adapter.read(path);
+                    await loadForwardVariantData(text);
+                    logger.log(`Variant forward map loaded (${(text.length / 1024).toFixed(0)} KB)`);
+                } catch (e) {
+                    logger.warn("Variant forward map not loaded:", e);
+                }
+            })(),
+            (async () => {
+                try {
+                    // 考试词汇级别映射 (14.9K 条目, 444KB)
+                    const path = normalizePath(`${pluginDir}/exam-vocab.json`);
+                    const text = await this.app.vault.adapter.read(path);
+                    await loadExamVocabData(text);
+                    logger.log(`Exam vocab data loaded (${(text.length / 1024).toFixed(0)} KB)`);
+                } catch (e) {
+                    logger.warn("Exam vocab data not loaded:", e);
+                }
+            })(),
+        ]);
+    }
+
+    /** 后台预加载 stat-bundle (echarts ~1MB)，不阻塞主线程 */
+    private async _preloadStatBundle() {
+        try {
+            const pluginDir = (this.manifest as any).dir
+                || `.obsidian/plugins/${this.manifest.id}`;
+            const mod = await import(normalizePath(`${pluginDir}/stat-bundle.mjs`));
+            this._StatView = mod.StatView;
+            logger.log("Stat bundle preloaded");
+        } catch (e) {
+            logger.warn("Stat bundle preload failed:", e);
+        }
     }
 
     // async replacePDF() {
@@ -317,6 +387,66 @@ export default class LanguageLearner extends Plugin {
                 this.addWordFromSelection(selection);
             },
         });
+
+        // 一次性补全存量单词的考试级别标签
+        this.addCommand({
+            id: "langr-backfill-exam-tags",
+            name: "Backfill exam level tags" as any,
+            callback: () => this.backfillExamTags(),
+        });
+    }
+
+    async backfillExamTags() {
+        if (!isExamVocabDataLoaded()) {
+            new Notice("Exam vocab data not yet loaded, please try again");
+            return;
+        }
+        const localDb = this.db as any;
+        const allRecords = await localDb.idb.expressions.toArray();
+        if (!allRecords || allRecords.length === 0) {
+            new Notice("No words in database");
+            return;
+        }
+        let updated = 0;
+        let skipped = 0;
+        let repaired = 0;
+        const needRepair: { id: number; tags: Set<string> }[] = [];
+        for (const record of allRecords) {
+            const expr = record.expression?.toLowerCase?.() || '';
+            if (!expr) { skipped++; continue; }
+            let existingTags: string[];
+            if (record.tags instanceof Set) {
+                existingTags = [...record.tags];
+            } else if (Array.isArray(record.tags)) {
+                existingTags = record.tags.filter((t: any) => typeof t === 'string' && t.length > 0);
+                if (existingTags.length !== record.tags.length) {
+                    needRepair.push({ id: record.id, tags: new Set(existingTags) });
+                }
+            } else {
+                existingTags = [];
+            }
+            const examLevels = getWordExamLevels(expr);
+            if (examLevels.length === 0) { skipped++; continue; }
+            const newTags = examLevels.filter(l => !existingTags.includes(l));
+            if (newTags.length === 0) { skipped++; continue; }
+            const merged = new Set([...existingTags, ...newTags]);
+            try {
+                await localDb.idb.expressions.update(record.id, { tags: merged });
+                updated++;
+            } catch (e) {
+                logger.warn(`Failed to update tags for "${expr}":`, e);
+            }
+        }
+        for (const r of needRepair) {
+            try {
+                await localDb.idb.expressions.update(r.id, { tags: r.tags });
+                repaired++;
+            } catch (e) {
+                logger.warn(`Failed to repair tags for id ${r.id}:`, e);
+            }
+        }
+        new Notice(`Tags backfilled: ${updated} updated, ${skipped} skipped` + (repaired > 0 ? `, ${repaired} repaired` : ''));
+        dispatchEvent(new CustomEvent("obsidian-langr-refresh-stat"));
     }
 
     registerCustomViews() {
@@ -344,8 +474,15 @@ export default class LanguageLearner extends Plugin {
             (leaf) => new ReadingView(leaf, this)
         );
 
-        //注册统计视图
-        this.registerView(STAT_VIEW_TYPE, (leaf) => new StatView(leaf, this));
+        //注册统计视图 (echarts 在 stat-bundle.mjs 中，后台预加载)
+        this.registerView(STAT_VIEW_TYPE, (leaf) => {
+            if (!this._StatView) {
+                logger.warn("Stat bundle not yet loaded, retrying...");
+                this._preloadStatBundle();
+                throw new Error("Statistics view is loading, please try again in a moment");
+            }
+            return new this._StatView(leaf, this);
+        });
         this.addRibbonIcon(STAT_ICON, t("Open statistics"), async (evt) => {
             this.activateView(STAT_VIEW_TYPE, "right");
         });
@@ -421,11 +558,12 @@ export default class LanguageLearner extends Plugin {
 
         let del = this.settings.col_delimiter;
 
-        // 正向查询 (空字段写"空"防止窜行)
+        // 正向查询 (空字段写"空"防止窜行，换行符清洗防止格式破坏)
+        const sanitize = (s: string) => (s || "空").replace(/[\n\r]+/g, " ");
         let classified_texts = classified.map((w, idx) => {
             return (
                 `#### ${statusMap[idx]}\n` +
-                w.map((i) => `${words[i].expression}\n${words[i].meaning_en || "空"}\n${words[i].meaning_cn || "空"}`)
+                w.map((i) => `${words[i].expression}\n${sanitize(words[i].meaning_en)}\n${sanitize(words[i].meaning_cn)}`)
                     .join("\n\n") + "\n\n"
             );
         });
@@ -944,6 +1082,16 @@ export default class LanguageLearner extends Plugin {
             new Notice(t("Please select a word or phrase"));
             return;
         }
+
+        // 防乱码校验
+        if (/^[nviadjadvconjprep]/.test(word) && /[一-鿿]/.test(word)) {
+            new Notice("Invalid word: appears to be a definition, not a word");
+            return;
+        }
+        if (!/[a-zA-Z]/.test(word)) {
+            new Notice("Please select a word containing letters");
+            return;
+        }
         
         let existing = await this.db.getExpression(word);
         if (existing) {
@@ -978,6 +1126,12 @@ export default class LanguageLearner extends Plugin {
         
         let exprType = word.contains(" ") ? "PHRASE" : "WORD";
         
+        const tags: string[] = [];
+        if (isExamVocabDataLoaded()) {
+            const levels = getWordExamLevels(word.toLowerCase());
+            for (const level of levels) tags.push(level);
+        }
+
         let data = {
             expression: word.toLowerCase(),
             meaning: meaningCn,
@@ -985,7 +1139,7 @@ export default class LanguageLearner extends Plugin {
             meaning_cn: meaningCn,
             status: 1,
             t: exprType,
-            tags: [] as string[],
+            tags,
             notes: [] as string[],
             sentences: [] as Sentence[],
         };

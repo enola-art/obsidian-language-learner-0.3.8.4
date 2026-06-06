@@ -66,6 +66,9 @@ echo.
 REM 复制文件
 echo 复制 main.js...
 copy /Y "%SOURCE_DIR%\main.js" "%TARGET_DIR%\main.js"
+
+echo 复制 stat-bundle.mjs...
+copy /Y "%SOURCE_DIR%\stat-bundle.mjs" "%TARGET_DIR%\stat-bundle.mjs"
 if %errorlevel% neq 0 (
     echo [警告] 复制 main.js 失败
 )
@@ -80,6 +83,24 @@ echo 复制 styles.css...
 copy /Y "%SOURCE_DIR%\styles.css" "%TARGET_DIR%\styles.css"
 if %errorlevel% neq 0 (
     echo [警告] 复制 styles.css 失败
+)
+
+echo 复制 variants-reverse.json...
+copy /Y "%SOURCE_DIR%\variants-reverse.json" "%TARGET_DIR%\variants-reverse.json"
+if %errorlevel% neq 0 (
+    echo [警告] 复制 variants-reverse.json 失败
+)
+
+echo 复制 variants.json...
+copy /Y "%SOURCE_DIR%\variants.json" "%TARGET_DIR%\variants.json"
+if %errorlevel% neq 0 (
+    echo [警告] 复制 variants.json 失败
+)
+
+echo 复制 exam-vocab.json...
+copy /Y "%SOURCE_DIR%\exam-vocab.json" "%TARGET_DIR%\exam-vocab.json"
+if %errorlevel% neq 0 (
+    echo [警告] 复制 exam-vocab.json 失败
 )
 
 echo.

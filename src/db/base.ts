@@ -36,8 +36,8 @@ abstract class DbProvider {
     abstract importDB(data: any): Promise<void>;
     // 导出数据库
     abstract exportDB(): Promise<void>;
-    // 诊断和修复数据库
-    abstract diagnoseAndFixDatabase(): Promise<number>;
+    // 诊断和清理数据库 (修复错位 + 去重, 单次全表扫描)
+    abstract diagnoseAndCleanDatabase(): Promise<{ fixed: number; removed: number }>;
     // 删除单个单词
     abstract deleteExpression(expression: string): Promise<void>;
     // 批量删除单词

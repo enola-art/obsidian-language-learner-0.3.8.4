@@ -474,9 +474,10 @@ export class SettingTab extends PluginSettingTab {
             .addButton(button => button
                 .setButtonText(t("Fix"))
                 .onClick(async () => {
-                    let fixedCount = await this.plugin.db.diagnoseAndFixDatabase();
-                    if (fixedCount > 0) {
-                        new Notice(t("Successfully fixed {count} items").replace("{count}", String(fixedCount)));
+                    let result = await this.plugin.db.diagnoseAndCleanDatabase();
+                    const totalFixed = result.fixed + result.removed;
+                    if (totalFixed > 0) {
+                        new Notice(t("Successfully fixed {count} items").replace("{count}", String(totalFixed)));
                     } else {
                         new Notice(t("No issues found"));
                     }

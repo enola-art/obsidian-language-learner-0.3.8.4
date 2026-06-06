@@ -12,40 +12,43 @@ if you want to view the source, please visit the github repository of this plugi
 
 const prod = (process.argv[2] === 'production');
 
+const commonExternal = [
+    'obsidian',
+    'electron',
+    '@codemirror/autocomplete',
+    '@codemirror/closebrackets',
+    '@codemirror/collab',
+    '@codemirror/commands',
+    '@codemirror/comment',
+    '@codemirror/fold',
+    '@codemirror/gutter',
+    '@codemirror/highlight',
+    '@codemirror/history',
+    '@codemirror/language',
+    '@codemirror/lint',
+    '@codemirror/matchbrackets',
+    '@codemirror/panel',
+    '@codemirror/rangeset',
+    '@codemirror/rectangular-selection',
+    '@codemirror/search',
+    '@codemirror/state',
+    '@codemirror/stream-parser',
+    '@codemirror/text',
+    '@codemirror/tooltip',
+    '@codemirror/view',
+    ...builtins,
+];
+
+// Main bundle: plugin core (excludes StatView + echarts)
 await esbuild.build({
-    banner: {
-        js: banner,
-    },
-    plugins: [
-        vue({ isProd: true }),
-    ],
+    banner: { js: banner },
+    plugins: [vue({ isProd: true })],
     entryPoints: ['./src/plugin.ts'],
     bundle: true,
     external: [
-        'obsidian',
-        'electron',
-        '@codemirror/autocomplete',
-        '@codemirror/closebrackets',
-        '@codemirror/collab',
-        '@codemirror/commands',
-        '@codemirror/comment',
-        '@codemirror/fold',
-        '@codemirror/gutter',
-        '@codemirror/highlight',
-        '@codemirror/history',
-        '@codemirror/language',
-        '@codemirror/lint',
-        '@codemirror/matchbrackets',
-        '@codemirror/panel',
-        '@codemirror/rangeset',
-        '@codemirror/rectangular-selection',
-        '@codemirror/search',
-        '@codemirror/state',
-        '@codemirror/stream-parser',
-        '@codemirror/text',
-        '@codemirror/tooltip',
-        '@codemirror/view',
-        ...builtins],
+        ...commonExternal,
+        './views/StatView',   // lazy-loaded via stat-bundle.mjs
+    ],
     format: 'cjs',
     watch: !prod,
     target: 'es2016',
@@ -56,6 +59,23 @@ await esbuild.build({
     outfile: 'main.js',
 }).catch(() => process.exit(1));
 
+// Stat bundle: echarts + StatView (ESM, lazy-loaded at runtime)
+await esbuild.build({
+    banner: { js: banner },
+    plugins: [vue({ isProd: true })],
+    entryPoints: ['./src/views/StatView.ts'],
+    bundle: true,
+    external: commonExternal,
+    format: 'esm',
+    target: 'es2016',
+    logLevel: "info",
+    sourcemap: false,
+    minify: prod ? true : false,
+    treeShaking: true,
+    outfile: 'stat-bundle.mjs',
+}).catch(() => process.exit(1));
+
+// Styles
 await esbuild.build({
     entryPoints: ["./src/main.css"],
     outfile: "styles.css",
@@ -64,9 +84,3 @@ await esbuild.build({
     allowOverwrite: true,
     minify: false,
 });
-
-// if (!prod) {
-// 	fs.rm("./main.css", () => {
-// 		console.log("Build completed successfully.")
-// 	})
-// }

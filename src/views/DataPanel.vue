@@ -13,11 +13,13 @@
                             @keydown.enter="handleSearch"
                         />
                         <NButton size="tiny" @click="showAdvanced = !showAdvanced" :type="showAdvanced ? 'primary' : 'default'" style="margin-left:4px;">▾</NButton>
-                        <NButton size="small" type="info" style="margin-left:4px;" @click="showLevelStatsModal = true">
-                                    <span>📊</span>
-                                    <span style="margin-left:4px;">{{ t("Level Distribution") || "级别分布" }}</span>
-                                    <NBadge :value="Object.values(levelStats).reduce((a, b) => a + b, 0)" :max="9999" type="success" style="margin-left:4px;" />
-                                </NButton>
+                        <NDropdown trigger="click" :options="levelStatsOptions" @select="handleLevelSelect">
+                                    <NButton size="small" type="info" style="margin-left:4px; min-width: 130px;">
+                                        <span>📊</span>
+                                        <span style="margin-left:4px;">{{ selectedLevelFilter ? (EXAM_LEVELS[selectedLevelFilter]?.labelZh || selectedLevelFilter) : (t("Level Distribution") || "级别分布") }}</span>
+                                        <NBadge :value="Object.values(levelStats).reduce((a, b) => a + b, 0)" :max="9999" type="success" style="margin-left:4px;" />
+                                    </NButton>
+                                </NDropdown>
                     </div>
                     <div class="show-ignore-section">
                         <NButton size="small" @click="toggleShowIgnores" :type="showIgnores ? 'primary' : 'default'">
@@ -69,7 +71,7 @@
                 </div>
             </div>
             <NDataTable ref="table" size="small" :loading="loading" :data="data" :columns="collumns"
-                :row-key="makeRowKey" @update:checked-row-keys="handleCheck" :pagination="{ pageSize: 10 }" />
+                :row-key="makeRowKey" @update:checked-row-keys="handleCheck" :pagination="{ pageSize: 15 }" />
             
             <!-- Delete Confirmation Modal -->
             <NModal :show="showDeleteModal" @update:show="showDeleteModal = false">
@@ -133,55 +135,6 @@
                 </NCard>
             </NModal>
 
-            <!-- Level Stats Modal -->
-            <NModal :show="showLevelStatsModal" @update:show="showLevelStatsModal = false"
-                :content-style="{ padding: '0', overflow: 'visible' }">
-                <NCard style="width: 480px;" :title="t('Level Distribution') || '级别分布'" closable :on-close="() => { showLevelStatsModal = false }">
-                    <div v-if="Object.keys(levelStats).length > 0" class="level-stats-modal-body">
-                        <div class="level-stats-header-h">
-                            <span class="level-stats-total">{{ Object.values(levelStats).reduce((a, b) => a + b, 0) }} {{ t("words") || "词" }}</span>
-                        </div>
-                        <div v-if="selectedLevelFilter" class="level-stats-active-filter-h">
-                            <NTag size="small" closable @close="filterByLevel('')">
-                                {{ EXAM_LEVELS[selectedLevelFilter]?.labelZh || selectedLevelFilter }}: {{ levelStats[selectedLevelFilter] }}
-                            </NTag>
-                        </div>
-                        <div class="level-stats-grid"
-                            :style="{
-                                display: 'grid',
-                                gridTemplateColumns: '1fr 1fr',
-                                gap: '12px',
-                                width: '100%'
-                            }">
-                            <div
-                                v-for="(count, key) in levelStats"
-                                :key="key"
-                                class="level-stat-card"
-                                :class="{ 'level-active': selectedLevelFilter === key }"
-                                @click="filterByLevel(key)"
-                            >
-                                <div class="card-top">
-                                    <span class="card-dot" :style="{ backgroundColor: EXAM_LEVELS[key]?.color || '#999' }"></span>
-                                    <span class="card-label">{{ EXAM_LEVELS[key]?.labelZh || key || t('Other') || '其他' }}</span>
-                                    <span v-if="selectedLevelFilter === key" class="card-check">&check;</span>
-                                </div>
-                                <div class="card-count">{{ count }}</div>
-                                <div class="card-bottom">
-                                    <div class="card-bar-track">
-                                        <div class="card-bar-fill" :style="{ width: getLevelBarWidth(count) + '%', backgroundColor: EXAM_LEVELS[key]?.color || '#999' }"></div>
-                                    </div>
-                                    <span class="card-percent">{{ getLevelPercent(count) }}%</span>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                    <div v-else style="padding: 32px; text-align: center; color: #999;">
-                        <div style="font-size: 36px; margin-bottom: 10px;">📭</div>
-                        <div>暂无级别数据</div>
-                        <div style="font-size: 13px; margin-top: 6px;">为单词设置考试级别后将在此显示统计</div>
-                    </div>
-                </NCard>
-            </NModal>
         </NConfigProvider>
     </div>
 </template>
@@ -230,8 +183,8 @@ const plugin = getCurrentInstance().appContext.config.globalProperties
 
 const themeConfig: GlobalThemeOverrides = {
     DataTable: {
-        fontSizeSmall: plugin.constants.platform === "mobile" ? "10px" : "14px",
-        tdPaddingSmall: "8px",
+        fontSizeSmall: plugin.constants.platform === "mobile" ? "10px" : "13px",
+        tdPaddingSmall: "4px 8px",
     },
 };
 
@@ -326,7 +279,19 @@ let selectedTags = ref<string[]>([]);
 // 考试级别统计（#3）
 const levelStats = ref<Record<string, number>>({});
 const selectedLevelFilter = ref<string>("");
-const maxLevelCount = computed(() => Math.max(...Object.values(levelStats.value), 1));
+const levelStatsOptions = computed(() => {
+	const opts: Array<{ label: string; key: string }> = [];
+	if (selectedLevelFilter.value) {
+		opts.push({ label: `全部 (${Object.values(levelStats.value).reduce((a, b) => a + b, 0)}词)`, key: "" });
+	}
+	for (const [key, count] of Object.entries(levelStats.value)) {
+		const total = Object.values(levelStats.value).reduce((a, b) => a + b, 0);
+		const pct = total > 0 ? Math.round((count / total) * 100) : 0;
+		const label = EXAM_LEVELS[key]?.labelZh || key;
+		opts.push({ label: `${label}: ${count} (${pct}%)`, key });
+	}
+	return opts;
+});
 
 async function loadLevelStats() {
 	try {
@@ -336,24 +301,13 @@ async function loadLevelStats() {
 	}
 }
 
-function filterByLevel(level: string) {
-	if (selectedLevelFilter.value === level) {
+function handleLevelSelect(key: string) {
+	if (selectedLevelFilter.value === key) {
 		selectedLevelFilter.value = "";
 	} else {
-		selectedLevelFilter.value = level;
+		selectedLevelFilter.value = key;
 	}
 	applyFilters();
-}
-
-function getLevelBarWidth(count: number): string {
-	if (maxLevelCount.value <= 0) return "0%";
-	return `${(count / maxLevelCount.value) * 100}%`;
-}
-
-function getLevelPercent(count: number): number {
-	const total = Object.values(levelStats.value).reduce((a, b) => a + b, 0);
-	if (total <= 0) return 0;
-	return Math.round((count / total) * 100);
 }
 
 // 搜索框
@@ -455,7 +409,6 @@ let showBatchTagModal = ref(false);
 let batchTagName = ref("");
 let batchLoading = ref(false);
 let showBatchResultModal = ref(false);
-let showLevelStatsModal = ref(false);
 let batchResult = ref({ success: 0, failed: 0 });
 
 const batchStatusOptions = [
@@ -534,13 +487,14 @@ let collumns = reactive<DataTableColumns<Row>>([
     {
         title: t("EN"),
         key: "meaning_en",
-        width: 200,
+        width: 140,
     },
     // 中文含义
     {
         title: t("CN"),
         key: "meaning_cn",
-        width: 200,
+        width: 110,
+        ellipsis: { tooltip: true },
         render(row) {
             if (cnDisplayMode.value === "hover") {
                 return h(
@@ -556,16 +510,19 @@ let collumns = reactive<DataTableColumns<Row>>([
     {
         title: "Tags",
         key: "tags",
+        width: 110,
         render(row) {
-            return row.tags.map((tag: string) =>
-                h(
-                    NTag,
-                    {
-                        style: { marginRight: "6px" },
-                        type: "info",
-                        size: "tiny",
-                    },
-                    { default: () => tag }
+            return h('div', { style: { display: 'flex', flexWrap: 'wrap', gap: '2px' } },
+                row.tags.map((tag: string) =>
+                    h(
+                        NTag,
+                        {
+                            style: { marginRight: '0', padding: '0 4px', fontSize: '10px' },
+                            type: "info",
+                            size: "tiny",
+                        },
+                        { default: () => tag }
+                    )
                 )
             );
         },
@@ -574,14 +531,15 @@ let collumns = reactive<DataTableColumns<Row>>([
                 return true;
             }
             return mode.value === "and"
-                ? selectedTags.value.every((tag) => row.tags.contains(tag))
-                : selectedTags.value.some((tag) => row.tags.contains(tag));
+                ? selectedTags.value.every((tag: string) => row.tags.includes(tag))
+                : selectedTags.value.some((tag: string) => row.tags.includes(tag));
         },
     },
     // 修改日期
     {
         title: "Date",
         key: "date",
+        width: 90,
         sorter(row1, row2) {
             return moment.utc(row1.date).unix() - moment.utc(row2.date).unix();
         },
