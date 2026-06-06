@@ -413,8 +413,12 @@ export default class LanguageLearner extends Plugin {
     }
 
     async backfillExamTags() {
+        // 按需加载 exam-vocab 数据（即使 enable_variant_features=false 也能执行）
         if (!isExamVocabDataLoaded()) {
-            new Notice("Exam vocab data not yet loaded, please try again");
+            await this._loadVariantIndex();
+        }
+        if (!isExamVocabDataLoaded()) {
+            new Notice("Failed to load exam vocab data");
             return;
         }
         const localDb = this.db as any;
