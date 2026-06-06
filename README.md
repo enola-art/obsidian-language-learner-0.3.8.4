@@ -1,72 +1,8 @@
 # Language Learner
 
-**All-in-one language learning plugin for Obsidian**
+**Obsidian 一站式语言学习插件**
 
-[English](#english) | [中文](#中文)
-
----
-
-## English
-
-An Obsidian plugin for language learners that combines reading, dictionary lookup, vocabulary management, review, usage tracking, and statistics in one seamless experience.
-
-### Features
-
-- **Reading Mode** — Parse English text with NLP (sentence/word/phrase segmentation), click any word to look it up
-- **Dictionary Lookup** — Multi-dictionary support (Youdao, Cambridge, Jukuu, HJDict, DeepL) with popup or panel mode
-- **Vocabulary Management** — Add words with meanings, tags, status tracking (ignore/learning/familiar/known/learned)
-- **Learn Panel** — Full CRUD for expressions: submit, edit, tag, manage variants, auto-lemmatize
-- **Data Panel** — Searchable data table with level distribution (CET4/CET6/IELTS/TOEFL/GRE)
-- **Statistics View** — ECharts-powered word count & level distribution charts
-- **Exam Vocab Integration** — ECDICT-based exam level tagging (optional, toggle in settings)
-- **Variant Management** — Lemma variant tracking (e.g. considered → consider) with rule-based generation
-- **Spaced Repetition** *(in development)*
-- **Backend Server Mode** — Optional remote database server for multi-device sync
-
-### Performance
-
-The plugin uses a multi-bundle lazy-loading architecture to minimize startup time:
-
-| Bundle | Size | Load Timing |
-|--------|------|-------------|
-| `main.js` | ~1 MB | On startup (core) |
-| `stat-bundle.mjs` | ~987 KB | Background preload (echarts) |
-| `nlp-bundle.mjs` | ~47 KB | On first text parse (NLP engine) |
-| Variant data | ~4 MB | On demand (when enabled) |
-| Exam vocab data | ~454 KB | On demand (when enabled) |
-
-> **Tip:** Disable "Enable variant/POS features" in settings for fastest startup (skips ~4.5 MB of data loading).
-
-### Tech Stack
-
-- **Vue 3** + **Naive UI** (component library)
-- **Dexie.js** (IndexedDB wrapper)
-- **ECharts** (statistics visualization)
-- **unified / retext-english** (NLP text parsing)
-- **esbuild** (bundler with code splitting)
-- **TypeScript** + **SCSS**
-
-### Installation
-
-1. Download the latest release from [Releases](https://github.com/enola-art/obsidian-language-learmer-0.2.8/releases)
-2. Extract to `.obsidian/plugins/language-learner/` in your vault
-3. Enable the plugin in Settings → Community plugins
-
-Or install via BRAT (Beta Release Auto-Updating Tool).
-
-### Build from Source
-
-```bash
-cd obsidian-language-learner-0.3.3.5
-npm install
-npm run build
-```
-
-Output files: `main.js`, `main.css`, `stat-bundle.mjs`, `nlp-bundle.mjs`
-
-### License
-
-MIT
+[中文](#中文) | [English](#english)
 
 ---
 
@@ -129,5 +65,69 @@ npm run build
 输出文件：`main.js`、`main.css`、`stat-bundle.mjs`、`nlp-bundle.mjs`
 
 ### 许可证
+
+MIT
+
+---
+
+## English
+
+An Obsidian plugin for language learners that combines reading, dictionary lookup, vocabulary management, review, usage tracking, and statistics in one seamless experience.
+
+### Features
+
+- **Reading Mode** — Parse English text with NLP (sentence/word/phrase segmentation), click any word to look it up
+- **Dictionary Lookup** — Multi-dictionary support (Youdao, Cambridge, Jukuu, HJDict, DeepL) with popup or panel mode
+- **Vocabulary Management** — Add words with meanings, tags, status tracking (ignore/learning/familiar/known/learned)
+- **Learn Panel** — Full CRUD for expressions: submit, edit, tag, manage variants, auto-lemmatize
+- **Data Panel** — Searchable data table with level distribution (CET4/CET6/IELTS/TOEFL/GRE)
+- **Statistics View** — ECharts-powered word count & level distribution charts
+- **Exam Vocab Integration** — ECDICT-based exam level tagging (optional, toggle in settings)
+- **Variant Management** — Lemma variant tracking (e.g. considered → consider) with rule-based generation
+- **Spaced Repetition** *(in development)*
+- **Backend Server Mode** — Optional remote database server for multi-device sync
+
+### Performance
+
+The plugin uses a multi-bundle lazy-loading architecture to minimize startup time:
+
+| Bundle | Size | Load Timing |
+|--------|------|-------------|
+| `main.js` | ~1 MB | On startup (core) |
+| `stat-bundle.mjs` | ~987 KB | Background preload (echarts) |
+| `nlp-bundle.mjs` | ~47 KB | On first text parse (NLP engine) |
+| Variant data | ~4 MB | On demand (when enabled) |
+| Exam vocab data | ~454 KB | On demand (when enabled) |
+
+> **Tip:** Disable "Enable variant/POS features" in settings for fastest startup (skips ~4.5 MB of data loading).
+
+### Tech Stack
+
+- **Vue 3** + **Naive UI** (component library)
+- **Dexie.js** (IndexedDB wrapper)
+- **ECharts** (statistics visualization)
+- **unified / retext-english** (NLP text parsing)
+- **esbuild** (bundler with code splitting)
+- **TypeScript** + **SCSS**
+
+### Installation
+
+1. Download the latest release from [Releases](https://github.com/enola-art/obsidian-language-learmer-0.2.8/releases)
+2. Extract to `.obsidian/plugins/language-learner/` in your vault
+3. Enable the plugin in Settings → Community plugins
+
+Or install via BRAT (Beta Release Auto-Updating Tool).
+
+### Build from Source
+
+```bash
+cd obsidian-language-learner-0.3.3.5
+npm install
+npm run build
+```
+
+Output files: `main.js`, `main.css`, `stat-bundle.mjs`, `nlp-bundle.mjs`
+
+### License
 
 MIT
