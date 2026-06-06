@@ -457,7 +457,7 @@ let collumns = reactive<DataTableColumns<Row>>([
     {
         title: t("Expr"),
         key: "expr",
-        width: "80",
+        width: "90",
         sorter: "default",
         filter(_, row) {
             if (!searchText.value) return true;
@@ -469,7 +469,7 @@ let collumns = reactive<DataTableColumns<Row>>([
     {
         title: "Status",
         key: "status",
-        width: "50",
+        width: "80",
         defaultFilterOptionValues: statusMap.slice(1),
         filterOptions: [
             { label: t("Ignore"), value: t("Ignore") },
@@ -488,11 +488,10 @@ let collumns = reactive<DataTableColumns<Row>>([
         key: "meaning_en",
         width: 140,
     },
-    // 中文含义
+    // 中文含义 — 不设固定宽度，自动填满剩余空间（始终最宽）
     {
         title: t("CN"),
         key: "meaning_cn",
-        width: 190,
         render(row) {
             if (cnDisplayMode.value === "hover") {
                 return h(
@@ -508,7 +507,7 @@ let collumns = reactive<DataTableColumns<Row>>([
     {
         title: "Tags",
         key: "tags",
-        width: 50,
+        width: 70,
         render(row) {
             return h('div', { style: { display: 'flex', flexWrap: 'wrap', gap: '2px' } },
                 row.tags.map((tag: string) =>
