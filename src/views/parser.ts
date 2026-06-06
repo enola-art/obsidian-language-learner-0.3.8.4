@@ -1,43 +1,63 @@
-import { unified, Processor } from "unified";
-import retextEnglish from "retext-english";
-import { Root, Content, Literal, Parent, Sentence } from "nlcst";
-import { modifyChildren } from "unist-util-modify-children";
-import { visit } from "unist-util-visit";
-import { toString } from "nlcst-to-string";
-
+import type { Root, Content, Literal, Parent, Sentence } from "nlcst";
 import { Phrase, Word } from "@/db/interface";
 import Plugin from "@/plugin";
 
 const STATUS_MAP = ["ignore", "learning", "familiar", "known", "learned"];
 type AnyNode = Root | Content | Content[];
 
+let _nlp: any = null;
+let _nlpLoadPromise: Promise<void> | null = null;
+
+async function _ensureNlp(plugin: Plugin): Promise<void> {
+    if (_nlp) return;
+    if (_nlpLoadPromise) return _nlpLoadPromise;
+    _nlpLoadPromise = (async () => {
+        const pluginDir = (plugin.manifest as any).dir
+            || `.obsidian/plugins/${plugin.manifest.id}`;
+        const mod = await import(`${pluginDir}/nlp-bundle.mjs`);
+        _nlp = mod;
+    })();
+    return _nlpLoadPromise;
+}
+
 export class TextParser {
-    // 记录短语位置
     phrases: Phrase[] = [];
-    // 记录单词状态
     words: Map<string, Word> = new Map<string, Word>();
     pIdx: number = 0;
     plugin: Plugin;
-    processor: Processor;
+    processor: any = null;
+    private _phraseModifier: any = null;
 
     constructor(plugin: Plugin) {
         this.plugin = plugin;
-        this.processor = unified()
-            .use(retextEnglish)
+    }
+
+    get phraseModifier(): any {
+        return this._phraseModifier;
+    }
+
+    async _ensureProcessor() {
+        if (this.processor) return;
+        await _ensureNlp(this.plugin);
+        this._phraseModifier = _nlp.modifyChildren(this.wrapWord2Phrase.bind(this));
+        this.processor = _nlp.unified()
+            .use(_nlp.retextEnglish)
             .use(this.addPhrases())
             .use(this.stringfy2HTML());
     }
 
     async parse(data: string) {
+        await this._ensureProcessor();
         let newHTML = await this.text2HTML(data.trim());
         return newHTML;
     }
 
     async countWords(text: string): Promise<[number, number, number]> {
+        await this._ensureProcessor();
         const ast = this.processor.parse(text);
         let wordSet: Set<string> = new Set();
-        visit(ast, "WordNode", (word) => {
-            let text = toString(word).toLowerCase();
+        _nlp.visit(ast, "WordNode", (word: any) => {
+            let text = _nlp.toString(word).toLowerCase();
             if (/[0-9\u4e00-\u9fa5]/.test(text)) return;
             wordSet.add(text);
         });
@@ -52,7 +72,7 @@ export class TextParser {
             return [wordSet.size, 0, 0];
         }
         let ignore = 0;
-        stored.words.forEach((word) => {
+        stored.words.forEach((word: any) => {
             if (word.status === 0) ignore++;
         });
         let learn = stored.words.length - ignore;
@@ -64,7 +84,6 @@ export class TextParser {
         this.pIdx = 0;
         this.words.clear();
 
-        // 查找文本中的已知词组，用于构造ast中的PhraseNode（容错：DB未打开时跳过）
         try {
             this.phrases = (
                 await this.plugin.db.getStoredWords({
@@ -79,13 +98,11 @@ export class TextParser {
 
         const ast = this.processor.parse(text);
 
-        // 获得文章中去重后的单词
         let wordSet: Set<string> = new Set();
-        visit(ast, "WordNode", (word) => {
-            wordSet.add(toString(word).toLowerCase());
+        _nlp.visit(ast, "WordNode", (word: any) => {
+            wordSet.add(_nlp.toString(word).toLowerCase());
         });
 
-        // 查询这些单词的status（容错：DB未打开时所有词标记为"new"）
         let stored;
         try {
             stored = await this.plugin.db.getStoredWords({
@@ -97,17 +114,18 @@ export class TextParser {
             stored = { words: [] };
         }
 
-        stored.words.forEach((w) => this.words.set(w.text, w));
+        stored.words.forEach((w: any) => this.words.set(w.text, w));
 
         let HTML = this.processor.stringify(ast) as any as string;
         return HTML;
     }
 
     async getWordsPhrases(text: string) {
+        await this._ensureProcessor();
         const ast = this.processor.parse(text);
         let words: Set<string> = new Set();
-        visit(ast, "WordNode", (word) => {
-            words.add(toString(word).toLowerCase());
+        _nlp.visit(ast, "WordNode", (word: any) => {
+            words.add(_nlp.toString(word).toLowerCase());
         });
         let wordsPhrases = await this.plugin.db.getStoredWords({
             article: text.toLowerCase(),
@@ -115,10 +133,10 @@ export class TextParser {
         });
 
         let payload = [] as string[];
-        wordsPhrases.phrases.forEach((word) => {
+        wordsPhrases.phrases.forEach((word: any) => {
             if (word.status > 0) payload.push(word.text);
         });
-        wordsPhrases.words.forEach((word) => {
+        wordsPhrases.words.forEach((word: any) => {
             if (word.status > 0) payload.push(word.text);
         });
 
@@ -126,7 +144,6 @@ export class TextParser {
         return res;
     }
 
-    // Plugin：在retextEnglish基础上，把AST上一些单词包裹成短语
     addPhrases() {
         let selfThis = this;
         return function (option = {}) {
@@ -134,8 +151,6 @@ export class TextParser {
             proto.useFirst("tokenizeParagraph", selfThis.phraseModifier);
         };
     }
-
-    phraseModifier = modifyChildren(this.wrapWord2Phrase.bind(this));
 
     wrapWord2Phrase(node: Content, index: number, parent: Parent) {
         if (!node.hasOwnProperty("children")) return;
@@ -187,7 +202,6 @@ export class TextParser {
         }
     }
 
-    // Compiler部分: 在AST转换为string时包裹上相应标签
     stringfy2HTML() {
         let selfThis = this;
         return function () {
@@ -209,17 +223,15 @@ export class TextParser {
             let n = node as Parent;
             switch (n.type) {
                 case "WordNode": {
-                    let text = toString(n.children);
+                    let text = _nlp.toString(n.children);
                     let textLower = text.toLowerCase();
                     let status = this.words.has(textLower)
                         ? STATUS_MAP[this.words.get(textLower).status]
                         : "new";
 
-                    // 检查是否是缩写（例如 "Mr.", "Dr.", "etc." 等）
                     let isAbbreviation = /^[A-Za-z]+\.$/.test(text) || 
                         (text.includes(".") && text.length <= 5 && /^[A-Za-z.]+$/.test(text));
 
-                    // 如果是缩写，尝试查找不带点的版本
                     if (isAbbreviation && !this.words.has(textLower)) {
                         let textWithoutDot = textLower.replace(/\./g, '');
                         if (this.words.has(textWithoutDot)) {
@@ -227,14 +239,13 @@ export class TextParser {
                         }
                     }
 
-                    return /[0-9\u4e00-\u9fa5]/.test(text) // 不把数字当做单词
+                    return /[0-9\u4e00-\u9fa5]/.test(text)
                         ? `<span class="other">${text}</span>`
                         : `<span class="word ${status}">${text}</span>`;
                 }
                 case "PhraseNode": {
-                    let childText = toString(n.children);
+                    let childText = _nlp.toString(n.children);
                     let text = this.toHTMLString(n.children);
-                    // 获取词组的status
                     let phrase = this.phrases.find(
                         (p) => p.text === childText.toLowerCase()
                     );

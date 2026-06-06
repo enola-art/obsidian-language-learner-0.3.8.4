@@ -284,4 +284,6 @@ export default {
     "Reading mode: auto-mark lemma variants (e.g. considered -> consider). Default OFF to improve loading performance.": "Reading mode: auto-mark lemma variants (e.g. considered -> consider). Default OFF to improve loading performance.",
     "Auto generate rule-based variants": "Auto generate rule-based variants",
     "When submitting a word, also generate verb forms via rule-based patterns (e.g. +s/+ing/+ed). Default OFF — only ECDICT variants are used, which guarantees accuracy. Enable only if you need extra coverage for words not in ECDICT.": "When submitting a word, also generate verb forms via rule-based patterns (e.g. +s/+ing/+ed). Default OFF — only ECDICT variants are used, which guarantees accuracy. Enable only if you need extra coverage for words not in ECDICT.",
+    "Enable variant/POS features": "Enable variant/POS features",
+    "Load exam vocab (454KB) + variant data (~4MB) on demand for lemma matching, POS tagging, and exam level labels. Default OFF — significantly faster startup.": "Load exam vocab (454KB) + variant data (~4MB) on demand for lemma matching, POS tagging, and exam level labels. Default OFF — significantly faster startup.",
 };

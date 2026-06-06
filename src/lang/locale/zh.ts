@@ -281,4 +281,6 @@ export default {
     "Reading mode: auto-mark lemma variants (e.g. considered -> consider). Default OFF to improve loading performance.": "阅读模式下自动标记词形变体（如 considered→consider）。默认关闭以提升加载性能。",
     "Auto generate rule-based variants": "自动生成规则变体",
     "When submitting a word, also generate verb forms via rule-based patterns (e.g. +s/+ing/+ed). Default OFF — only ECDICT variants are used, which guarantees accuracy. Enable only if you need extra coverage for words not in ECDICT.": "提交单词时通过规则推导生成动词变体（如 +s/+ing/+ed）。默认关闭 — 仅使用 ECDICT 变体确保准确性。如需覆盖不在 ECDICT 中的单词可开启。",
+    "Enable variant/POS features": "启用词性/变体功能",
+    "Load exam vocab (454KB) + variant data (~4MB) on demand for lemma matching, POS tagging, and exam level labels. Default OFF — significantly faster startup.": "开启后加载考试词汇库(454KB)和词形变体数据(~4MB)，支持自动标注词形还原(considered→consider)和考试级别标签。关闭可显著加快启动速度。",
 };

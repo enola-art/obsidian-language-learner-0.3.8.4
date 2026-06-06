@@ -1,8 +1,10 @@
 import { ItemView, WorkspaceLeaf } from "obsidian";
-import { createApp, App } from "vue";
+import { createApp, App, defineAsyncComponent } from "vue";
 import PluginType from "@/plugin";
 import { t } from "@/lang/helper";
-import DataPanel from "./DataPanel.vue";
+
+// 懒加载：NDataTable 是 naive-ui 最重组件，延迟到用户打开面板时才加载
+const DataPanel = defineAsyncComponent(() => import("./DataPanel.vue"));
 
 export const DATA_ICON: string = "database";
 export const DATA_PANEL_VIEW: string = "langr-data-panel";
@@ -27,9 +29,6 @@ export class DataPanelView extends ItemView {
 	async onOpen() {
 		const container = this.containerEl.children[1];
 		container.empty();
-		// const contentEl = container.createEl("div", {
-		//     cls: "langr-search"
-		// })
 
 		this.vueapp = createApp(DataPanel);
 		this.vueapp.config.globalProperties.plugin = this.plugin;

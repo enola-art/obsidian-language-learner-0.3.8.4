@@ -39,7 +39,7 @@ const commonExternal = [
     ...builtins,
 ];
 
-// Main bundle: plugin core (excludes StatView + echarts)
+// Main bundle: plugin core (excludes StatView + NLP deps)
 await esbuild.build({
     banner: { js: banner },
     plugins: [vue({ isProd: true })],
@@ -47,7 +47,13 @@ await esbuild.build({
     bundle: true,
     external: [
         ...commonExternal,
-        './views/StatView',   // lazy-loaded via stat-bundle.mjs
+        './views/StatView',          // lazy-loaded via stat-bundle.mjs
+        // NLP deps — lazy-loaded via nlp-bundle.mjs
+        'unified',
+        'retext-english',
+        'nlcst-to-string',
+        'unist-util-modify-children',
+        'unist-util-visit',
     ],
     format: 'cjs',
     watch: !prod,
@@ -73,6 +79,21 @@ await esbuild.build({
     minify: prod ? true : false,
     treeShaking: true,
     outfile: 'stat-bundle.mjs',
+}).catch(() => process.exit(1));
+
+// NLP bundle: unified + retext-english + parse-english (~500KB, lazy-loaded)
+await esbuild.build({
+    banner: { js: banner },
+    entryPoints: ['./src/nlp-bundle.ts'],
+    bundle: true,
+    external: commonExternal,
+    format: 'esm',
+    target: 'es2016',
+    logLevel: "info",
+    sourcemap: false,
+    minify: prod ? true : false,
+    treeShaking: true,
+    outfile: 'nlp-bundle.mjs',
 }).catch(() => process.exit(1));
 
 // Styles

@@ -45,8 +45,8 @@ import {
     formatGarbledReport
 } from "./utils/garbled-detector";
 import type { GarbledWordResult } from "./utils/garbled-detector";
-import { loadVariantData } from "./data/ecdict-variants-reverse";
-import { loadForwardVariantData } from "./data/ecdict-variants";
+import { loadVariantData, isVariantDataLoaded } from "./data/ecdict-variants-reverse";
+import { loadForwardVariantData, isForwardVariantDataLoaded } from "./data/ecdict-variants";
 import { loadExamVocabData, getWordExamLevels, isExamVocabDataLoaded } from "./data/exam-vocab";
 
 
@@ -100,14 +100,11 @@ export default class LanguageLearner extends Plugin {
             : new LocalDb(this);
         await this.db.open();
 
+        // 后台预加载 stat-bundle (echarts ~1MB)，不阻塞 UI，尽早启动
+        this._preloadStatBundle();
+
         // vault 内 langr-db.json 为主存储，IndexedDB 仅为运行时缓存
         this.app.workspace.onLayoutReady(async () => {
-            // 异步加载数据 JSON (变体索引 + 考试词汇)，确保 import 时可用
-            await this._loadVariantIndex();
-
-            // 后台预加载 stat-bundle (echarts ~1MB)，不阻塞 UI
-            this._preloadStatBundle();
-
             // 监听数据变更事件，自动同步到 vault
             addEventListener("obsidian-langr-data-change", () => {
                 this.scheduleDbSave();
@@ -115,8 +112,13 @@ export default class LanguageLearner extends Plugin {
             });
 
             if (!this.settings.use_server) {
-                // 始终从 vault 文件恢复（vault 是数据源）
-                const restored = await this.restoreDbFromVault();
+                // 变体功能关闭时：仅恢复数据库，零额外 I/O
+                // 变体功能开启时：并行加载 exam-vocab + 恢复数据库
+                const tasks: Promise<any>[] = [this.restoreDbFromVault()];
+                if (this.settings.enable_variant_features) {
+                    tasks.push(this._loadVariantIndex());
+                }
+                const [restored] = await Promise.all(tasks);
 
                 if (!restored && this.settings.word_database) {
                     // vault 没有备份，检查 IndexedDB 中是否已有数据
@@ -141,6 +143,8 @@ export default class LanguageLearner extends Plugin {
 
                 // 确保 vault 文件存在且最新
                 this.scheduleDbSave();
+            } else if (this.settings.enable_variant_features) {
+                await this._loadVariantIndex();
             }
         });
 
@@ -221,11 +225,34 @@ export default class LanguageLearner extends Plugin {
         const pluginDir = (this.manifest as any).dir
             || `.obsidian/plugins/${this.manifest.id}`;
 
-        // 并行加载所有数据文件
+        // 仅加载考试词汇数据 (454KB)，变体数据 (~4MB) 按需懒加载
+        try {
+            const path = normalizePath(`${pluginDir}/exam-vocab.json`);
+            const text = await this.app.vault.adapter.read(path);
+            await loadExamVocabData(text);
+            logger.log(`Exam vocab data loaded (${(text.length / 1024).toFixed(0)} KB)`);
+        } catch (e) {
+            logger.warn("Exam vocab data not loaded:", e);
+        }
+    }
+
+    /** 按需加载全部变体功能数据（exam-vocab 454KB + 变体 ~4MB），由设置开关或首次使用触发 */
+    async loadVariantFeatures() {
+        await Promise.all([
+            this._loadVariantIndex(),
+            this.ensureVariantDataLoaded(),
+        ]);
+    }
+
+    /** 按需加载变体数据 (正向 3.2MB + 反向 749KB)，仅在 enable_variant_features 开启后调用 */
+    async ensureVariantDataLoaded() {
+        const pluginDir = (this.manifest as any).dir
+            || `.obsidian/plugins/${this.manifest.id}`;
+
         await Promise.all([
             (async () => {
+                if (isVariantDataLoaded()) return;
                 try {
-                    // 反向索引: 变体→词条 (31K 条目, 749KB)
                     const path = normalizePath(`${pluginDir}/variants-reverse.json`);
                     const text = await this.app.vault.adapter.read(path);
                     await loadVariantData(text);
@@ -235,25 +262,14 @@ export default class LanguageLearner extends Plugin {
                 }
             })(),
             (async () => {
+                if (isForwardVariantDataLoaded()) return;
                 try {
-                    // 正向映射: 词条→变体列表 (16K 条目, 3.2MB)
                     const path = normalizePath(`${pluginDir}/variants.json`);
                     const text = await this.app.vault.adapter.read(path);
                     await loadForwardVariantData(text);
                     logger.log(`Variant forward map loaded (${(text.length / 1024).toFixed(0)} KB)`);
                 } catch (e) {
                     logger.warn("Variant forward map not loaded:", e);
-                }
-            })(),
-            (async () => {
-                try {
-                    // 考试词汇级别映射 (14.9K 条目, 444KB)
-                    const path = normalizePath(`${pluginDir}/exam-vocab.json`);
-                    const text = await this.app.vault.adapter.read(path);
-                    await loadExamVocabData(text);
-                    logger.log(`Exam vocab data loaded (${(text.length / 1024).toFixed(0)} KB)`);
-                } catch (e) {
-                    logger.warn("Exam vocab data not loaded:", e);
                 }
             })(),
         ]);

@@ -156,11 +156,16 @@ watch(
 
     .dict-item-body {
         position: relative;
-        overflow: hidden;
+        overflow-y: auto;
+        scrollbar-width: none;
         padding-top: 10px;
         transition: max-height 1s cubic-bezier(0, 1, 0, 1);
         padding-left: 10px;
         padding-right: 10px;
+
+        &::-webkit-scrollbar {
+            display: none;
+        }
 
         .fold-mask {
             position: absolute;

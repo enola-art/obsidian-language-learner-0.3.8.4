@@ -51,6 +51,7 @@ export interface MyPluginSettings {
     auto_mark_lemma_variants: boolean;
     auto_generate_variants: boolean;
     variant_note_path: string;
+    enable_variant_features: boolean;
 }
 
 export const DEFAULT_SETTINGS: MyPluginSettings = {
@@ -100,6 +101,7 @@ export const DEFAULT_SETTINGS: MyPluginSettings = {
     auto_mark_lemma_variants: false,
     auto_generate_variants: false,
     variant_note_path: "word-variants.md",
+    enable_variant_features: false,
 };
 
 export class SettingTab extends PluginSettingTab {
@@ -754,6 +756,21 @@ export class SettingTab extends PluginSettingTab {
                         this.plugin.settings.variant_note_path = path;
                         await this.plugin.saveSettings();
                     })
+            );
+
+        new Setting(containerEl)
+            .setName(t("Enable variant/POS features"))
+            .setDesc(t("Load exam vocab (454KB) + variant data (~4MB) on demand for lemma matching, POS tagging, and exam level labels. Default OFF — significantly faster startup."))
+            .addToggle(toggle => toggle
+                .setValue(this.plugin.settings.enable_variant_features)
+                .onChange(async (value) => {
+                    this.plugin.settings.enable_variant_features = value;
+                    if (value) {
+                        // 开启时立即后台加载（不阻塞 UI）
+                        this.plugin.loadVariantFeatures();
+                    }
+                    await this.plugin.saveSettings();
+                })
             );
     }
 

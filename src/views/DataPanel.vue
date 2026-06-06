@@ -183,8 +183,8 @@ const plugin = getCurrentInstance().appContext.config.globalProperties
 
 const themeConfig: GlobalThemeOverrides = {
     DataTable: {
-        fontSizeSmall: plugin.constants.platform === "mobile" ? "10px" : "13px",
-        tdPaddingSmall: "4px 8px",
+        fontSizeSmall: plugin.constants.platform === "mobile" ? "10px" : "0.85em",
+        tdPaddingSmall: "8px 8px",
     },
 };
 
@@ -228,31 +228,30 @@ async function loadData() {
     if (loadTimeout) {
         clearTimeout(loadTimeout);
     }
-    
-    loadTimeout = setTimeout(async () => {
-        try {
-            loading.value = true;
-            
-            if (!plugin.db.idb) {
-                await plugin.db.open();
+
+    return new Promise<void>((resolve) => {
+        loadTimeout = setTimeout(async () => {
+            try {
+                loading.value = true;
+
+                if (!plugin.db.idb) {
+                    await plugin.db.open();
+                }
+
+                allData.value = await plugin.db.getAllExpressionSimple(showIgnores.value);
+                tags.value = await plugin.db.getTags();
+                checkedTags.value = Array(tags.value.length).fill(false);
+                await loadLevelStats();
+
+                loading.value = false;
+                resolve();
+            } catch (error) {
+                console.error("加载数据失败:", error);
+                loading.value = false;
+                resolve();
             }
-            
-            allData.value = await plugin.db.getAllExpressionSimple(showIgnores.value);
-            tags.value = await plugin.db.getTags();
-            checkedTags.value = Array(tags.value.length).fill(false);
-            await loadLevelStats();
-            
-            loading.value = false;
-        } catch (error) {
-            console.error("加载数据失败:", error);
-            loading.value = false;
-            
-            if (plugin.importWordDB) {
-                await plugin.importWordDB();
-                loadData();
-            }
-        }
-    }, 100);
+        }, 100);
+    });
 }
 
 watchEffect(async () => {
@@ -458,7 +457,7 @@ let collumns = reactive<DataTableColumns<Row>>([
     {
         title: t("Expr"),
         key: "expr",
-        width: 120,
+        width: "80",
         sorter: "default",
         filter(_, row) {
             if (!searchText.value) return true;
@@ -470,7 +469,7 @@ let collumns = reactive<DataTableColumns<Row>>([
     {
         title: "Status",
         key: "status",
-        width: "70",
+        width: "50",
         defaultFilterOptionValues: statusMap.slice(1),
         filterOptions: [
             { label: t("Ignore"), value: t("Ignore") },
@@ -493,8 +492,7 @@ let collumns = reactive<DataTableColumns<Row>>([
     {
         title: t("CN"),
         key: "meaning_cn",
-        width: 110,
-        ellipsis: { tooltip: true },
+        width: 190,
         render(row) {
             if (cnDisplayMode.value === "hover") {
                 return h(
@@ -510,7 +508,7 @@ let collumns = reactive<DataTableColumns<Row>>([
     {
         title: "Tags",
         key: "tags",
-        width: 110,
+        width: 50,
         render(row) {
             return h('div', { style: { display: 'flex', flexWrap: 'wrap', gap: '2px' } },
                 row.tags.map((tag: string) =>
@@ -539,7 +537,7 @@ let collumns = reactive<DataTableColumns<Row>>([
     {
         title: "Date",
         key: "date",
-        width: 90,
+        width: 70,
         sorter(row1, row2) {
             return moment.utc(row1.date).unix() - moment.utc(row2.date).unix();
         },

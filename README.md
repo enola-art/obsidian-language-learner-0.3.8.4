@@ -1,165 +1,133 @@
-# Language Learner v0.3.8.4
+# Language Learner
 
-Obsidian 语言学习插件，集阅读、查词、复习、统计于一体。
+**All-in-one language learning plugin for Obsidian**
 
----
-
-## 开箱即用
-
-1. 将 `main.js`、`styles.css`、`manifest.json` 放入 Obsidian 插件目录：
-   ```
-   {vault}/.obsidian/plugins/obsidian-language-learner/
-   ```
-2. 重启 Obsidian，在设置中启用插件
-3. 首次使用需配置 **Word Database Path**（建议 `word-db.md`）和 **词形变体数据库路径**（默认 `word-variants.md`）
+[English](#english) | [中文](#中文)
 
 ---
 
-## 核心功能
+## English
 
-### 阅读模式
+An Obsidian plugin for language learners that combines reading, dictionary lookup, vocabulary management, review, usage tracking, and statistics in one seamless experience.
 
-- 打开任意英文 Markdown 文件，点击右上角书本图标进入阅读模式
-- 所有已学单词将高亮标记（Learning / Familiar / Known / Learned）
-- 未学单词以灰色显示，点击可查询并添加
-- 已学单词的变体形式（如过去式、复数）自动识别并反哺标记
-- 桌面端支持 Ctrl+点击多选短语查询
-- 键盘翻页：方向键 / Home / End
+### Features
 
-### 单词学习面板
+- **Reading Mode** — Parse English text with NLP (sentence/word/phrase segmentation), click any word to look it up
+- **Dictionary Lookup** — Multi-dictionary support (Youdao, Cambridge, Jukuu, HJDict, DeepL) with popup or panel mode
+- **Vocabulary Management** — Add words with meanings, tags, status tracking (ignore/learning/familiar/known/learned)
+- **Learn Panel** — Full CRUD for expressions: submit, edit, tag, manage variants, auto-lemmatize
+- **Data Panel** — Searchable data table with level distribution (CET4/CET6/IELTS/TOEFL/GRE)
+- **Statistics View** — ECharts-powered word count & level distribution charts
+- **Exam Vocab Integration** — ECDICT-based exam level tagging (optional, toggle in settings)
+- **Variant Management** — Lemma variant tracking (e.g. considered → consider) with rule-based generation
+- **Spaced Repetition** *(in development)*
+- **Backend Server Mode** — Optional remote database server for multi-device sync
 
-- 输入单词自动从有道词典获取中英文释义
-- 支持手动填写或修改含义、例句、笔记、标签
-- 自动词形还原（如输入 `running` 自动识别为 `run` 的变体）
-- 提交时自动生成并保存所有词形变体（过去式、过去分词、现在分词、第三人称单数、名词复数、比较级、最高级）
-- 变体中文含义自动从有道词典查询填充
+### Performance
 
-### 词形变体系统
+The plugin uses a multi-bundle lazy-loading architecture to minimize startup time:
 
-**数据源分工：**
-- ECDICT 词典 -- 提供单词有哪些变体形态（仅形态，不含含义）
-- 有道词典 -- 提供单词及变体的中文含义
-- 规则推导 -- ECDICT 未覆盖的规则复数（如 partnerships）由代码自动生成
+| Bundle | Size | Load Timing |
+|--------|------|-------------|
+| `main.js` | ~1 MB | On startup (core) |
+| `stat-bundle.mjs` | ~987 KB | Background preload (echarts) |
+| `nlp-bundle.mjs` | ~47 KB | On first text parse (NLP engine) |
+| Variant data | ~4 MB | On demand (when enabled) |
+| Exam vocab data | ~454 KB | On demand (when enabled) |
 
-**存储分工：**
-- IndexedDB -- 单词主记录（expression / meaning_cn / meaning_en / status / tags）
-- word-variants.md -- 词形变体独立存储（按变体类型组织，如 p=过去式, d=过去分词, i=现在分词, 3=第三人称单数, s=名词复数, r=比较级, t=最高级）
-- word-db.md -- 单词文本数据库（三行一组：单词 / 英文释义 / 中文释义）
+> **Tip:** Disable "Enable variant/POS features" in settings for fastest startup (skips ~4.5 MB of data loading).
 
-**空值处理：**
-- Markdown 输出时空字段写入字面量"空"，防止解析串行
+### Tech Stack
 
-### 词典查询
+- **Vue 3** + **Naive UI** (component library)
+- **Dexie.js** (IndexedDB wrapper)
+- **ECharts** (statistics visualization)
+- **unified / retext-english** (NLP text parsing)
+- **esbuild** (bundler with code splitting)
+- **TypeScript** + **SCSS**
 
-- 选中文本或点击单词，自动查询有道、剑桥、沪江、句酷、DeepL 等多词典
-- 支持发音（美式/英式）
-- 支持弹窗模式
+### Installation
 
-### 数据管理
+1. Download the latest release from [Releases](https://github.com/enola-art/obsidian-language-learmer-0.2.8/releases)
+2. Extract to `.obsidian/plugins/language-learner/` in your vault
+3. Enable the plugin in Settings → Community plugins
 
-- 单词列表支持按状态、考试级别（CET4/6、IELTS、TOEFL、GRE 等）筛选
-- 级别分布面板（横向列表展示）
-- 批量操作：更改状态、添加标签
-- 支持 IndexedDB 导入导出
-- 自动同步到 vault 备份（`.obsidian/langr-db.json`）
+Or install via BRAT (Beta Release Auto-Updating Tool).
 
-### 复习系统
-
-- 生成符合 Obsidian Spaced Repetition 格式的复习卡片
-- 支持美式/英式发音切换
-
----
-
-## 设置项说明
-
-| 设置 | 说明 | 默认值 |
-|------|------|--------|
-| Word Database Path | 单词文本数据库路径 | 空（需手动填写，如 `word-db.md`） |
-| Review Database Path | 复习卡片文件路径 | 空 |
-| 词形变体数据库路径 | 变体存储 Note 文件路径 | `word-variants.md` |
-| Auto refresh | 提交时自动刷新文本数据库 | 开启 |
-| Auto fill meanings | 添加单词时自动从词典填充中文含义 | 关闭 |
-| Auto Lemmatize | 输入时自动还原词形 | 关闭 |
-| Use Server | 使用独立后端服务器 | 关闭 |
-
----
-
-## 词形变体文件格式 (word-variants.md)
-
-```markdown
-# Word Variants
-
-## collaborate
-- collaborated | d | 过去分词 | 合作;协作
-- collaborating | i | 现在分词 | 合作;协作
-- collaborates | 3 | 第三人称单数 | 合作;协作
-- collaborations | s | 复数 | 合作;协作
-
-## reimagine
-- reimagined | d | 过去分词 | 重新构想;重新想象
-```
-
-格式：`- {变体拼写} | {类型标签} | {类型中文} | {有道中文含义}`
-
----
-
-## 开发构建
+### Build from Source
 
 ```bash
+cd obsidian-language-learner-0.3.3.5
 npm install
 npm run build
 ```
 
-构建产物：
-- `main.js` -- 插件主文件
-- `styles.css` -- 样式文件
+Output files: `main.js`, `main.css`, `stat-bundle.mjs`, `nlp-bundle.mjs`
+
+### License
+
+MIT
 
 ---
 
-## 版本历史
+## 中文
 
-### v0.3.8.4 (2026-05-31)
+一款为语言学习者打造的 Obsidian 插件，将阅读、查词、词汇管理、复习、使用统计全部整合在一个插件中。
 
-- 阅读模式分块懒加载（A/B/C/D pills）：长文章(>=10000词)自动切块，块内段落分页
-- 键盘跨块导航：右箭头在块末尾自动进入下一块
-- 结束阅读按钮三态：下一页 → 下一部分 → 结束全部阅读
-- 阅读进度持久化（langr-chunk + langr-pos），重启恢复位置
-- 修复阅读模式白屏（4个顶层同步崩溃点：Electron IPC/getFileCache null/app未定义/API不存在）
-- 文章清洗去激进化（移除 replace+filter，仅保留 trim）
-- 渲染 watch 顶层 try/catch 保护
-- 作者更新为 sable & cc
+### 功能特性
 
-### v0.3.3.5 (2026-05-21)
+- **阅读模式** — NLP 引擎解析英文文本（句子/单词/短语分词），点击任意单词即可查词
+- **词典查询** — 多词典支持（有道/剑桥/句酷/海词/DeepL），支持弹窗和面板两种模式
+- **词汇管理** — 添加单词及释义、标签、状态追踪（忽略/学习/熟悉/已掌握/已学会）
+- **学习面板** — 完整的词条 CRUD：提交、编辑、打标签、管理变体、自动词形还原
+- **数据面板** — 可搜索数据表，级别分布（四六级/雅思/托福/GRE）
+- **统计视图** — ECharts 驱动的词量与级别分布图表
+- **考试词汇集成** — 基于 ECDICT 的考试级别标注（可选，设置中开关）
+- **变体管理** — 词形变体追踪（如 considered → consider），支持规则推导生成
+- **间隔重复** *(开发中)*
+- **后端服务器模式** — 可选远程数据库，多设备同步
 
-- 词形变体独立存储至 Note 文件（word-variants.md），与主表数据解耦
-- 变体中文含义完全由有道词典查询填充，去除 ECDICT 拼接兜底
-- Markdown 文本数据库空字段写入"空"，防止三行格式串位
-- IndexedDB 新增 variant_refs 列，Schema 升级至 v2
-- 有道 query 空结果时自动词形还原重试（复数变体查不回中文的修复）
-- 原文变体点击跳转到原形单词
-- 变体类型扩展到名词复数/比较级/最高级
-- 级别分布 UI 优化为横向列表布局
-- searchBasic 移除 error-typo 短路返回
+### 性能优化
 
-### v0.3.3.2 (2026-05-20)
+插件采用多 bundle 懒加载架构，最小化启动时间：
 
-- 词形反哺系统：原文变体自动识别并标记
-- ECDICT 词形变体数据集成
-- VariantEntry 数据结构初版
+| Bundle | 大小 | 加载时机 |
+|--------|------|---------|
+| `main.js` | ~1 MB | 启动时（核心） |
+| `stat-bundle.mjs` | ~987 KB | 后台预加载（echarts） |
+| `nlp-bundle.mjs` | ~47 KB | 首次解析文本时（NLP引擎） |
+| 变体数据 | ~4 MB | 按需加载（开启时） |
+| 考试词汇数据 | ~454 KB | 按需加载（开启时） |
 
-### v0.3.3.1 (2026-05-14)
+> **提示：** 在设置中关闭「启用词性/变体功能」可获得最快启动速度（跳过约 4.5MB 数据加载）。
 
-- 基础单词学习、阅读标记、词典查询功能
-- ECDICT 词形变体反哺系统
-- 考试级别标记与统计
-- IndexedDB 本地存储 + vault JSON 备份
+### 技术栈
 
-### v0.3.3
+- **Vue 3** + **Naive UI**（组件库）
+- **Dexie.js**（IndexedDB 封装）
+- **ECharts**（统计可视化）
+- **unified / retext-english**（NLP 文本解析）
+- **esbuild**（打包器，支持代码分割）
+- **TypeScript** + **SCSS**
 
-- 初始版本
+### 安装方式
 
----
+1. 从 [Releases](https://github.com/enola-art/obsidian-language-learmer-0.2.8/releases) 下载最新版本
+2. 解压到仓库的 `.obsidian/plugins/language-learner/` 目录
+3. 在 设置 → 社区插件 中启用
 
-## 许可
+也可通过 BRAT 插件安装。
 
-MIT License
+### 从源码构建
+
+```bash
+cd obsidian-language-learner-0.3.3.5
+npm install
+npm run build
+```
+
+输出文件：`main.js`、`main.css`、`stat-bundle.mjs`、`nlp-bundle.mjs`
+
+### 许可证
+
+MIT
