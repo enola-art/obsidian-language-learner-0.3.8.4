@@ -29,6 +29,7 @@ function percent(num: number) {
         return num;
     }
     let total = props.unknown + props.learn + props.ignore;
+    if (total <= 0) return "0%";
     let res = num / total;
     return ((Math.round(res * 1000) * 100) / 1000).toString() + "%";
 }

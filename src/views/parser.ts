@@ -1,64 +1,42 @@
-import type { Root, Content, Literal, Parent, Sentence } from "nlcst";
+import { unified, Processor } from "unified";
+import retextEnglish from "retext-english";
+import { Root, Content, Literal, Parent, Sentence } from "nlcst";
+import { modifyChildren } from "unist-util-modify-children";
+import { visit } from "unist-util-visit";
+import { toString } from "nlcst-to-string";
+
 import { Phrase, Word } from "@/db/interface";
 import Plugin from "@/plugin";
 
 const STATUS_MAP = ["ignore", "learning", "familiar", "known", "learned"];
 type AnyNode = Root | Content | Content[];
 
-let _nlp: any = null;
-let _nlpLoadPromise: Promise<void> | null = null;
-
-async function _ensureNlp(plugin: Plugin): Promise<void> {
-    if (_nlp) return;
-    if (_nlpLoadPromise) return _nlpLoadPromise;
-    _nlpLoadPromise = (async () => {
-        const pluginDir = (plugin.manifest as any).dir
-            || `.obsidian/plugins/${plugin.manifest.id}`;
-        const mod = await import(`${pluginDir}/nlp-bundle.mjs`);
-        _nlp = mod;
-    })();
-    return _nlpLoadPromise;
-}
-
 export class TextParser {
     phrases: Phrase[] = [];
     words: Map<string, Word> = new Map<string, Word>();
     pIdx: number = 0;
     plugin: Plugin;
-    processor: any = null;
-    private _phraseModifier: any = null;
+    processor: Processor;
 
     constructor(plugin: Plugin) {
         this.plugin = plugin;
-    }
-
-    get phraseModifier(): any {
-        return this._phraseModifier;
-    }
-
-    async _ensureProcessor() {
-        if (this.processor) return;
-        await _ensureNlp(this.plugin);
-        this._phraseModifier = _nlp.modifyChildren(this.wrapWord2Phrase.bind(this));
-        this.processor = _nlp.unified()
-            .use(_nlp.retextEnglish)
+        this.processor = unified()
+            .use(retextEnglish)
             .use(this.addPhrases())
             .use(this.stringfy2HTML());
     }
 
     async parse(data: string) {
-        await this._ensureProcessor();
         let newHTML = await this.text2HTML(data.trim());
         return newHTML;
     }
 
     async countWords(text: string): Promise<[number, number, number]> {
-        await this._ensureProcessor();
         const ast = this.processor.parse(text);
         let wordSet: Set<string> = new Set();
-        _nlp.visit(ast, "WordNode", (word: any) => {
-            let text = _nlp.toString(word).toLowerCase();
-            if (/[0-9\u4e00-\u9fa5]/.test(text)) return;
+        visit(ast, "WordNode", (word: any) => {
+            let text = toString(word).toLowerCase();
+            if (/[0-9一-龥]/.test(text)) return;
             wordSet.add(text);
         });
         let stored;
@@ -99,8 +77,8 @@ export class TextParser {
         const ast = this.processor.parse(text);
 
         let wordSet: Set<string> = new Set();
-        _nlp.visit(ast, "WordNode", (word: any) => {
-            wordSet.add(_nlp.toString(word).toLowerCase());
+        visit(ast, "WordNode", (word: any) => {
+            wordSet.add(toString(word).toLowerCase());
         });
 
         let stored;
@@ -121,11 +99,10 @@ export class TextParser {
     }
 
     async getWordsPhrases(text: string) {
-        await this._ensureProcessor();
         const ast = this.processor.parse(text);
         let words: Set<string> = new Set();
-        _nlp.visit(ast, "WordNode", (word: any) => {
-            words.add(_nlp.toString(word).toLowerCase());
+        visit(ast, "WordNode", (word: any) => {
+            words.add(toString(word).toLowerCase());
         });
         let wordsPhrases = await this.plugin.db.getStoredWords({
             article: text.toLowerCase(),
@@ -146,11 +123,13 @@ export class TextParser {
 
     addPhrases() {
         let selfThis = this;
-        return function (option = {}) {
+        return function (this: any, option = {}) {
             const proto = this.Parser.prototype;
             proto.useFirst("tokenizeParagraph", selfThis.phraseModifier);
         };
     }
+
+    phraseModifier = modifyChildren(this.wrapWord2Phrase.bind(this));
 
     wrapWord2Phrase(node: Content, index: number, parent: Parent) {
         if (!node.hasOwnProperty("children")) return;
@@ -204,7 +183,7 @@ export class TextParser {
 
     stringfy2HTML() {
         let selfThis = this;
-        return function () {
+        return function (this: any) {
             Object.assign(this, {
                 Compiler: selfThis.compileHTML.bind(selfThis),
             });
@@ -223,13 +202,13 @@ export class TextParser {
             let n = node as Parent;
             switch (n.type) {
                 case "WordNode": {
-                    let text = _nlp.toString(n.children);
+                    let text = toString(n.children);
                     let textLower = text.toLowerCase();
                     let status = this.words.has(textLower)
                         ? STATUS_MAP[this.words.get(textLower).status]
                         : "new";
 
-                    let isAbbreviation = /^[A-Za-z]+\.$/.test(text) || 
+                    let isAbbreviation = /^[A-Za-z]+\.$/.test(text) ||
                         (text.includes(".") && text.length <= 5 && /^[A-Za-z.]+$/.test(text));
 
                     if (isAbbreviation && !this.words.has(textLower)) {
@@ -239,12 +218,12 @@ export class TextParser {
                         }
                     }
 
-                    return /[0-9\u4e00-\u9fa5]/.test(text)
+                    return /[0-9一-龥]/.test(text)
                         ? `<span class="other">${text}</span>`
                         : `<span class="word ${status}">${text}</span>`;
                 }
                 case "PhraseNode": {
-                    let childText = _nlp.toString(n.children);
+                    let childText = toString(n.children);
                     let text = this.toHTMLString(n.children);
                     let phrase = this.phrases.find(
                         (p) => p.text === childText.toLowerCase()
