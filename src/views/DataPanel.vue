@@ -537,6 +537,7 @@ let collumns = reactive<DataTableColumns<Row>>([
         title: "Date",
         key: "date",
         width: "12%",
+        minWidth: 100,
         sorter(row1, row2) {
             return moment.utc(row1.date).unix() - moment.utc(row2.date).unix();
         },
