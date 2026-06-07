@@ -16,7 +16,7 @@ import { createApp, App as VueApp } from "vue";
 import { SearchPanelView, SEARCH_ICON, SEARCH_PANEL_VIEW } from "./views/SearchPanelView";
 import { READING_VIEW_TYPE, READING_ICON, ReadingView } from "./views/ReadingView";
 import { LearnPanelView, LEARN_ICON, LEARN_PANEL_VIEW } from "./views/LearnPanelView";
-// StatView is lazy-loaded via stat-bundle.mjs (echarts ~1MB excluded from main bundle)
+import { StatView } from "./views/StatView";
 const STAT_VIEW_TYPE = 'langr-stat';
 const STAT_ICON = 'bar-chart-4';
 import { DataPanelView, DATA_ICON, DATA_PANEL_VIEW } from "./views/DataPanelView";
@@ -45,9 +45,7 @@ import {
     formatGarbledReport
 } from "./utils/garbled-detector";
 import type { GarbledWordResult } from "./utils/garbled-detector";
-import { loadVariantData, isVariantDataLoaded } from "./data/ecdict-variants-reverse";
-import { loadForwardVariantData, isForwardVariantDataLoaded } from "./data/ecdict-variants";
-import { loadExamVocabData, getWordExamLevels, isExamVocabDataLoaded } from "./data/exam-vocab";
+import { getWordExamLevels, isExamVocabDataLoaded } from "./data/exam-vocab";
 
 
 
@@ -69,7 +67,6 @@ export default class LanguageLearner extends Plugin {
     markdownButtons: Record<string, HTMLElement> = {};
     frontManager: FrontMatterManager;
     store: typeof store = store;
-    _StatView: any = null;
     _saveTimer: number = null;
     _wordDbTimer: number = null;
 
@@ -100,40 +97,26 @@ export default class LanguageLearner extends Plugin {
             : new LocalDb(this);
         await this.db.open();
 
-        // 后台预加载 stat-bundle (echarts ~1MB)，不阻塞 UI，尽早启动
-        this._preloadStatBundle();
-
         // vault 内 langr-db.json 为主存储，IndexedDB 仅为运行时缓存
         this.app.workspace.onLayoutReady(async () => {
-            // 监听数据变更事件，自动同步到 vault
             addEventListener("obsidian-langr-data-change", () => {
                 this.scheduleDbSave();
                 this.scheduleWordDbRefresh();
             });
 
             if (!this.settings.use_server) {
-                // 变体功能关闭时：仅恢复数据库，零额外 I/O
-                // 变体功能开启时：并行加载 exam-vocab + 恢复数据库
-                const tasks: Promise<any>[] = [this.restoreDbFromVault()];
-                if (this.settings.enable_variant_features) {
-                    tasks.push(this._loadVariantIndex());
-                }
-                const [restored] = await Promise.all(tasks);
+                const restored = await this.restoreDbFromVault();
 
                 if (!restored && this.settings.word_database) {
-                    // vault 没有备份，检查 IndexedDB 中是否已有数据
                     const localDb = this.db as LocalDb;
                     const existingCount = await localDb.getExpressionCount();
                     if (existingCount > 0) {
-                        // IndexedDB 有残留数据（上次未成功保存到 vault），保留这些数据
                         logger.log(`Vault backup not found, but IndexedDB has ${existingCount} existing entries - preserving them`);
                         new Notice(t("Preserved N words from cache").replace("N", String(existingCount)));
                     } else {
-                        // IndexedDB 也为空，从 wordDB.md 导入（仅作为最后手段）
                         await this.importWordDB();
                     }
                 } else if (restored) {
-                    // 从 vault 恢复后，诊断并修复数据 (单次全表扫描)
                     const localDb = this.db as LocalDb;
                     const { fixed, removed } = await localDb.diagnoseAndCleanDatabase();
                     if (fixed > 0 || removed > 0) {
@@ -141,10 +124,7 @@ export default class LanguageLearner extends Plugin {
                     }
                 }
 
-                // 确保 vault 文件存在且最新
                 this.scheduleDbSave();
-            } else if (this.settings.enable_variant_features) {
-                await this._loadVariantIndex();
             }
         });
 
@@ -218,74 +198,6 @@ export default class LanguageLearner extends Plugin {
             basePath: normalizePath((this.app.vault.adapter as any).basePath),
             platform: Platform.isMobile ? "mobile" : "desktop",
         };
-    }
-
-    /** 异步加载数据 JSON 文件 (避开 main.js bundle, 减少启动阻塞) */
-    private async _loadVariantIndex() {
-        const pluginDir = (this.manifest as any).dir
-            || `.obsidian/plugins/${this.manifest.id}`;
-
-        // 仅加载考试词汇数据 (454KB)，变体数据 (~4MB) 按需懒加载
-        try {
-            const path = normalizePath(`${pluginDir}/exam-vocab.json`);
-            const text = await this.app.vault.adapter.read(path);
-            await loadExamVocabData(text);
-            logger.log(`Exam vocab data loaded (${(text.length / 1024).toFixed(0)} KB)`);
-        } catch (e) {
-            logger.warn("Exam vocab data not loaded:", e);
-        }
-    }
-
-    /** 按需加载全部变体功能数据（exam-vocab 454KB + 变体 ~4MB），由设置开关或首次使用触发 */
-    async loadVariantFeatures() {
-        await Promise.all([
-            this._loadVariantIndex(),
-            this.ensureVariantDataLoaded(),
-        ]);
-    }
-
-    /** 按需加载变体数据 (正向 3.2MB + 反向 749KB)，仅在 enable_variant_features 开启后调用 */
-    async ensureVariantDataLoaded() {
-        const pluginDir = (this.manifest as any).dir
-            || `.obsidian/plugins/${this.manifest.id}`;
-
-        await Promise.all([
-            (async () => {
-                if (isVariantDataLoaded()) return;
-                try {
-                    const path = normalizePath(`${pluginDir}/variants-reverse.json`);
-                    const text = await this.app.vault.adapter.read(path);
-                    await loadVariantData(text);
-                    logger.log(`Variant reverse index loaded (${(text.length / 1024).toFixed(0)} KB)`);
-                } catch (e) {
-                    logger.warn("Variant reverse index not loaded:", e);
-                }
-            })(),
-            (async () => {
-                if (isForwardVariantDataLoaded()) return;
-                try {
-                    const path = normalizePath(`${pluginDir}/variants.json`);
-                    const text = await this.app.vault.adapter.read(path);
-                    await loadForwardVariantData(text);
-                    logger.log(`Variant forward map loaded (${(text.length / 1024).toFixed(0)} KB)`);
-                } catch (e) {
-                    logger.warn("Variant forward map not loaded:", e);
-                }
-            })(),
-        ]);
-    }
-
-    /** 后台预加载 stat-bundle (echarts ~1MB)，不阻塞主线程 */
-    private async _preloadStatBundle() {
-        try {
-            const pluginDir = (this.manifest as any).dir
-                || `.obsidian/plugins/${this.manifest.id}`;
-            const mod = await import(normalizePath(`${pluginDir}/stat-bundle.mjs`));
-            this._StatView = mod.StatView;
-            logger.log("Stat bundle preloaded");
-        } catch (e) {
-            logger.warn("Stat bundle preload failed:", e);
-        }
     }
 
     // async replacePDF() {
@@ -413,14 +325,6 @@ export default class LanguageLearner extends Plugin {
     }
 
     async backfillExamTags() {
-        // 按需加载 exam-vocab 数据（即使 enable_variant_features=false 也能执行）
-        if (!isExamVocabDataLoaded()) {
-            await this._loadVariantIndex();
-        }
-        if (!isExamVocabDataLoaded()) {
-            new Notice("Failed to load exam vocab data");
-            return;
-        }
         const localDb = this.db as any;
         const allRecords = await localDb.idb.expressions.toArray();
         if (!allRecords || allRecords.length === 0) {
@@ -494,15 +398,8 @@ export default class LanguageLearner extends Plugin {
             (leaf) => new ReadingView(leaf, this)
         );
 
-        //注册统计视图 (echarts 在 stat-bundle.mjs 中，后台预加载)
-        this.registerView(STAT_VIEW_TYPE, (leaf) => {
-            if (!this._StatView) {
-                logger.warn("Stat bundle not yet loaded, retrying...");
-                this._preloadStatBundle();
-                throw new Error("Statistics view is loading, please try again in a moment");
-            }
-            return new this._StatView(leaf, this);
-        });
+        //注册统计视图 (echarts 已内联进 main.js)
+        this.registerView(STAT_VIEW_TYPE, (leaf) => new StatView(leaf, this));
         this.addRibbonIcon(STAT_ICON, t("Open statistics"), async (evt) => {
             this.activateView(STAT_VIEW_TYPE, "right");
         });

@@ -39,16 +39,13 @@ const commonExternal = [
     ...builtins,
 ];
 
-// Main bundle: plugin core (excludes StatView + NLP deps)
+// Main bundle: plugin core (StatView + JSON data all inlined)
 await esbuild.build({
     banner: { js: banner },
     plugins: [vue({ isProd: true })],
     entryPoints: ['./src/plugin.ts'],
     bundle: true,
-    external: [
-        ...commonExternal,
-        './views/StatView',          // lazy-loaded via stat-bundle.mjs
-    ],
+    external: commonExternal,
     format: 'cjs',
     watch: !prod,
     target: 'es2016',
@@ -57,22 +54,6 @@ await esbuild.build({
     minify: prod ? true : false,
     treeShaking: true,
     outfile: 'main.js',
-}).catch(() => process.exit(1));
-
-// Stat bundle: echarts + StatView (ESM, lazy-loaded at runtime)
-await esbuild.build({
-    banner: { js: banner },
-    plugins: [vue({ isProd: true })],
-    entryPoints: ['./src/views/StatView.ts'],
-    bundle: true,
-    external: commonExternal,
-    format: 'esm',
-    target: 'es2016',
-    logLevel: "info",
-    sourcemap: false,
-    minify: prod ? true : false,
-    treeShaking: true,
-    outfile: 'stat-bundle.mjs',
 }).catch(() => process.exit(1));
 
 // Styles

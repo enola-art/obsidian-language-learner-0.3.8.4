@@ -765,10 +765,6 @@ export class SettingTab extends PluginSettingTab {
                 .setValue(this.plugin.settings.enable_variant_features)
                 .onChange(async (value) => {
                     this.plugin.settings.enable_variant_features = value;
-                    if (value) {
-                        // 开启时立即后台加载（不阻塞 UI）
-                        this.plugin.loadVariantFeatures();
-                    }
                     await this.plugin.saveSettings();
                 })
             );

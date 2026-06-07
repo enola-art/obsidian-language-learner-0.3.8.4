@@ -16,6 +16,7 @@
     "importHelpers": true,
     "isolatedModules": true,
     "allowSyntheticDefaultImports": true,
+    "resolveJsonModule": true,
     "jsx":"preserve",
     "lib": [
       "DOM",
