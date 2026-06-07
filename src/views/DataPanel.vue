@@ -75,7 +75,7 @@
             
             <!-- Delete Confirmation Modal -->
             <NModal :show="showDeleteModal" @update:show="showDeleteModal = false">
-                <NCard style="width: 400px;">
+                <NCard style="width: 600px;">
                     <template #header>
                         <span>{{ t("Confirm Delete") }}</span>
                     </template>
@@ -457,7 +457,7 @@ let collumns = reactive<DataTableColumns<Row>>([
     {
         title: t("Expr"),
         key: "expr",
-        width: "90",
+        width: "120",
         sorter: "default",
         filter(_, row) {
             if (!searchText.value) return true;
@@ -486,7 +486,7 @@ let collumns = reactive<DataTableColumns<Row>>([
     {
         title: t("EN"),
         key: "meaning_en",
-        width: 140,
+        width: 150,
     },
     // 中文含义 — 不设固定宽度，自动填满剩余空间（始终最宽）
     {
@@ -507,7 +507,7 @@ let collumns = reactive<DataTableColumns<Row>>([
     {
         title: "Tags",
         key: "tags",
-        width: 70,
+        width: 85,
         render(row) {
             return h('div', { style: { display: 'flex', flexWrap: 'wrap', gap: '2px' } },
                 row.tags.map((tag: string) =>
@@ -536,7 +536,7 @@ let collumns = reactive<DataTableColumns<Row>>([
     {
         title: "Date",
         key: "date",
-        width: 70,
+        width: 75,
         sorter(row1, row2) {
             return moment.utc(row1.date).unix() - moment.utc(row2.date).unix();
         },
