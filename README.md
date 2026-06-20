@@ -2,6 +2,8 @@
 
 **Obsidian 一站式语言学习插件**
 
+语言学习插件 language-learner 基础操作可参见B站视频和原项目地址，本项目为在此基础续开发，
+
 [中文](#中文) | [English](#english)
 
 ---
